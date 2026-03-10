@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="src/IMSharp.Api/IMSharp.Api.csproj" />
+  <Project Path="src/IMSharp.Core/IMSharp.Core.csproj" />
+  <Project Path="src/IMSharp.Domain/IMSharp.Domain.csproj" />
+  <Project Path="src/IMSharp.Infrastructure/IMSharp.Infrastructure.csproj" />
+</Solution>

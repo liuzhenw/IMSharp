@@ -1,0 +1,21 @@
+POST {{AuthBaseUrl}}/connect/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type = password &
+client_id = im_sharp &
+username = service  &
+password = 123456
+
+> {% 
+    client.test("Status code is 200", function() {
+        client.assert(response.status === 200, "Status code is not 200");
+    })
+    client.global.set("OAuthAccessToken", response.body.access_token);
+ %}
+###
+
+GET {{AuthBaseUrl}}/connect/userinfo
+Authorization: Bearer {{OAuthAccessToken}}
+Content-Type: application/json
+
+

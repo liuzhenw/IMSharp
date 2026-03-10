@@ -1,0 +1,1034 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="">
+<head>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>IM Pro - Client-Side Prototype</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+    <script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#ec5b13",
+                        "background-light": "#f5f7f8",
+                        "background-dark": "#0f1923",
+                        "danger": "#ef4444",
+                    },
+                    fontFamily: {
+                        "display": ["Public Sans", "Noto Sans SC", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.5rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Public Sans', sans-serif;
+            min-height: 100dvh;
+        }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 font-display">
+    <div id="root"></div>
+
+    <!-- React and Dependencies -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/history@5/umd/history.development.js"></script>
+    <script src="https://unpkg.com/react-router@6.3.0/umd/react-router.development.js"></script>
+    <script src="https://unpkg.com/react-router-dom@6.3.0/umd/react-router-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <script type="text/babel" data-presets="react">
+        const { useState, useEffect } = React;
+        const { createRoot } = ReactDOM;
+        const { MemoryRouter, Routes, Route, Link, useNavigate, useLocation } = ReactRouterDOM;
+
+        // --- Common Components ---
+
+        const BottomNav = ({ activeTab }) => {
+            const tabs = [
+                { id: 'chats', icon: 'chat_bubble', label: '消息', path: '/' },
+                { id: 'contacts', icon: 'contact_page', label: '通讯录', path: '/contacts' },
+                { id: 'profile', icon: 'person', label: '我', path: '/profile' }
+            ];
+
+            return (
+                <nav class="fixed bottom-0 left-0 w-full border-t border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md px-2 pb-6 pt-2 z-50">
+                    <div class="flex justify-around items-center">
+                        {tabs.map(tab => (
+                            <Link 
+                                key={tab.id}
+                                to={tab.path}
+                                class={`flex flex-1 flex-col items-center justify-center gap-1 transition-colors ${activeTab === tab.id ? 'text-primary' : 'text-slate-400 dark:text-slate-500'}`}
+                            >
+                                <div class="flex h-8 items-center justify-center">
+                                    <span class="material-symbols-outlined text-2xl" style={{ fontVariationSettings: activeTab === tab.id ? '"FILL" 1' : '"FILL" 0' }}>{tab.icon}</span>
+                                </div>
+                                <p class="text-[10px] font-bold leading-none uppercase tracking-wider">{tab.label}</p>
+                            </Link>
+                        ))}
+                    </div>
+                </nav>
+            );
+        };
+
+        const ConfirmationModal = ({ isOpen, title, message, onConfirm, onCancel }) => {
+            if (!isOpen) return null;
+            return (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-white dark:bg-slate-800 w-full max-w-xs rounded-2xl p-6 shadow-2xl animate-in zoom-in-95 duration-200">
+                        <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">{title}</h3>
+                        <p className="text-sm text-slate-600 dark:text-slate-400 mb-6">{message}</p>
+                        <div className="flex gap-3">
+                            <button 
+                                onClick={onCancel}
+                                className="flex-1 px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-semibold text-sm hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+                            >
+                                取消
+                            </button>
+                            <button 
+                                onClick={onConfirm}
+                                className="flex-1 px-4 py-2.5 rounded-xl bg-primary text-white font-semibold text-sm hover:bg-primary/90 transition-colors shadow-lg shadow-primary/20"
+                            >
+                                确定
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- Screen Components ---
+
+        const ChatsScreen = () => {
+            const navigate = useNavigate();
+            const [isMenuOpen, setIsMenuOpen] = useState(false);
+
+            return (
+                <div class="flex flex-col h-screen overflow-hidden">
+                    <header class="flex items-center justify-between px-4 pt-6 pb-2 bg-white dark:bg-white shrink-0 relative">
+                        <div class="size-10"></div>
+                        <h1 class="text-2xl font-bold tracking-tight flex-1 text-center">聊天</h1>
+                        <div class="flex items-center gap-2">
+                            <button 
+                                onClick={() => setIsMenuOpen(!isMenuOpen)}
+                                class="flex size-10 items-center justify-center rounded-full hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"
+                            >
+                                <span class="material-symbols-outlined text-slate-700 dark:text-slate-300">more_vert</span>
+                            </button>
+                            {isMenuOpen && (
+                                <>
+                                    <div className="fixed inset-0 z-40" onClick={() => setIsMenuOpen(false)}></div>
+                                    <div className="absolute right-4 top-16 w-40 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-100 dark:border-slate-700 py-1 z-50 animate-in fade-in zoom-in duration-200 origin-top-right">
+                                        <button 
+                                            onClick={() => { navigate('/add-friend'); setIsMenuOpen(false); }}
+                                            className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-700 text-sm font-medium transition-colors"
+                                        >
+                                            <span className="material-symbols-outlined text-primary text-xl">person_add</span>
+                                            添加好友
+                                        </button>
+                                        <div className="h-px bg-slate-100 dark:bg-slate-700 mx-2"></div>
+                                        <button 
+                                            onClick={() => { navigate('/create-group'); setIsMenuOpen(false); }}
+                                            className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-700 text-sm font-medium transition-colors"
+                                        >
+                                            <span className="material-symbols-outlined text-primary text-xl">group_add</span>
+                                            创建群聊
+                                        </button>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    </header>
+                    <div class="px-4 py-3 shrink-0">
+                        <div class="flex w-full items-center rounded-xl bg-slate-200/50 dark:bg-slate-800/50 px-4 py-2.5">
+                            <span class="material-symbols-outlined text-slate-500 dark:text-slate-400 text-xl">search</span>
+                            <input class="flex w-full border-none bg-transparent focus:outline-0 focus:ring-0 text-sm placeholder:text-slate-500 dark:placeholder:text-slate-400" placeholder="搜索聊天..." type="text"/>
+                        </div>
+                    </div>
+                    <div class="flex-1 overflow-y-auto pb-20">
+                        {/* Chat items */}
+                        <div onClick={() => navigate('/chat/sarah')} class="flex items-center gap-4 px-4 py-3 hover:bg-slate-100 dark:hover:bg-slate-800/40 cursor-pointer transition-colors">
+                            <div class="relative shrink-0">
+                                <div class="size-14 rounded-full bg-cover bg-center border-2 border-white dark:border-slate-900 shadow-sm" style={{backgroundImage: 'url("https://lh3.googleusercontent.com/aida-public/AB6AXuA8qU7sLlgr8gvFfYfz5co4zZQRFmxRiQKt1ttxqXgZVbhcwrp3aHOtRXg3KaA8GRtZ6xCwztK0GGlrGekYIsoN-V1NSea7plGPGftFubnT6qi7ZaCD1yKOsVdRIHaVNVHZ-w7JlWFkvn_Z4gb9v_TEUFwWPUsVUse8uhM-XhmAspYhJmIg7zUoXm9byuhO6-ikq0wkuGJDS6fKrLYknAsBoCGzMgG_wns65OUKIPvJpsdXIqeU0yVcFw0cdRWHfJjRIsDoDNwVsZzv")'}}></div>
+                                <div class="absolute bottom-0 right-0 size-3.5 rounded-full border-2 border-white dark:border-slate-900 bg-green-500"></div>
+                            </div>
+                            <div class="flex flex-1 flex-col justify-center min-w-0">
+                                <div class="flex justify-between items-baseline">
+                                    <p class="text-base font-semibold truncate text-slate-900 dark:text-slate-100">Sarah Jenkins</p>
+                                    <p class="text-xs font-medium text-primary">12:45 PM</p>
+                                </div>
+                                <div class="flex justify-between items-center mt-0.5">
+                                    <p class="text-sm font-medium text-slate-700 dark:text-slate-300 truncate">Hey! Did you see the new design? 😍</p>
+                                    <div class="flex size-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-white">2</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div onClick={() => navigate('/chat/design')} class="flex items-center gap-4 px-4 py-3 hover:bg-slate-100 dark:hover:bg-slate-800/40 cursor-pointer transition-colors">
+                            <div class="shrink-0">
+                                <div class="size-14 rounded-full bg-gradient-to-br from-primary to-orange-600 flex items-center justify-center shadow-sm">
+                                    <span class="material-symbols-outlined text-white text-3xl">groups</span>
+                                </div>
+                            </div>
+                            <div class="flex flex-1 flex-col justify-center min-w-0">
+                                <div class="flex justify-between items-baseline">
+                                    <p class="text-base font-semibold truncate text-slate-900 dark:text-slate-100">Design Squad 🎨</p>
+                                    <p class="text-xs text-slate-500 dark:text-slate-400">11:20 AM</p>
+                                </div>
+                                <div class="flex justify-between items-center mt-0.5">
+                                    <p class="text-sm text-slate-500 dark:text-slate-400 truncate"><span class="font-medium text-slate-700 dark:text-slate-300">Alex:</span> 发送了一张图片 🖼️</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center gap-4 px-4 py-3 hover:bg-slate-100 dark:hover:bg-slate-800/40 cursor-pointer transition-colors">
+                            <div class="shrink-0">
+                                <div class="size-14 rounded-full bg-cover bg-center border-2 border-white dark:border-slate-900 shadow-sm" style={{backgroundImage: 'url("https://lh3.googleusercontent.com/aida-public/AB6AXuD02W8G17go0lslpUDaPwgsKnusWJZrTZ0vzy2hx-kbuZgl_t6Y-itALV4jtm8-McAhlC8ZqtL4knL6egG-sDoi6YmJvivFYwmkvP6SqUDJ0ZczoXMlghLByrgxpOZqbbv5zsMCMgOl9BcAJOHoiitnoyAs7b7ptM2muS-WY9YvJpMHK14qDgAgLQnL1cq3BWoELjCG6Lt7VCfks9R8iT1Cok8VYsmRVcXWxUkqRm6A6iBMy00lW750jzqTKnsMyhJGsO1eUWDopaIZ")'}}></div>
+                            </div>
+                            <div class="flex flex-1 flex-col justify-center min-w-0">
+                                <div class="flex justify-between items-baseline">
+                                    <p class="text-base font-semibold truncate text-slate-900 dark:text-slate-100">Michael Chen</p>
+                                    <p class="text-xs text-slate-500 dark:text-slate-400">Yesterday</p>
+                                </div>
+                                <div class="flex justify-between items-center mt-0.5">
+                                    <p class="text-sm text-slate-500 dark:text-slate-400 truncate">会议已改期至周五上午10点。</p>
+                                    <span class="material-symbols-outlined text-primary text-lg">done_all</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <BottomNav activeTab="chats" />
+                </div>
+            );
+        };
+
+        const ContactsScreen = () => {
+            const navigate = useNavigate();
+            const [view, setView] = useState('friends');
+
+            const groupList = [
+                { id: 'design', name: 'UI/UX 设计交流群', members: 128, image: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDoN6Pn_98sB15EbgkETLgkYuA-Bu88oMCCqkJl8remLQu9ooQAoa_fRpCYw9KmRcTao882Lc8esI16HXU-GSFnJaevpI7_RLfvAEyiFTmUBbM4LA-cZ3vhGuVY-vRDRqr1_-G0pCDfKiz6G9-O65twuM6nRxgB5hZrsqMdy6U7fy5I8BccmX2or8G1_7fpihZB7m5YqWDprN9GJs9wiFBw-7Un-SEajWaCPwJxSFEBlmKjU6ndWUpuEzOpA5iSLMi5OV7BZsSDcLwJ' },
+                { id: 'frontend', name: '前端技术探讨', members: 85, image: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCL8m9Q8072m1p0pL8UvO5L-uW1l3kYjS1R2R-Wz_N7s9U0U0U0U0U0U0U0U0U0U0U0U0U0U0U0U0U0' },
+            ];
+
+            return (
+                <div class="flex flex-col h-screen overflow-hidden bg-white dark:bg-slate-900">
+                    <header class="flex items-center justify-between px-4 pt-6 pb-2 shrink-0 bg-white dark:bg-slate-800">
+                        <div class="size-10"></div>
+                        <h1 class="text-2xl font-bold tracking-tight flex-1 text-center">通讯录</h1>
+                        {view === 'friends' ? (
+                            <button onClick={() => navigate('/add-friend')} class="flex items-center gap-4 justify-end size-10 transition-all">
+                                <span class="material-symbols-outlined text-primary">person_add</span>
+                            </button>
+                        ) : (
+                            <button onClick={() => navigate('/search-group')} class="flex items-center gap-4 justify-end size-10 transition-all">
+                                <span class="material-symbols-outlined text-primary">group_add</span>
+                            </button>
+                        )}
+                    </header>
+                    <div class="px-4 py-3">
+                        <div class="flex w-full items-center rounded-xl bg-slate-200/50 dark:bg-slate-800/50 px-4 py-2.5">
+                            <span class="material-symbols-outlined text-slate-500 dark:text-slate-400 text-xl">search</span>
+                            <input class="flex w-full border-none bg-transparent focus:outline-0 focus:ring-0 text-sm placeholder:text-slate-500 dark:placeholder:text-slate-400" placeholder={view === 'friends' ? "搜索好友..." : "搜索群组..."} type="text"/>
+                        </div>
+                    </div>
+                    <div class="flex border-b border-slate-100 dark:border-slate-800">
+                        <button 
+                            onClick={() => setView('friends')}
+                            class={`flex-1 py-3 text-center border-b-2 text-sm transition-all ${view === 'friends' ? 'border-primary text-primary font-bold' : 'border-transparent text-slate-500 dark:text-slate-400 font-medium'}`}
+                        >
+                            好友
+                        </button>
+                        <button 
+                            onClick={() => setView('groups')}
+                            class={`flex-1 py-3 text-center border-b-2 text-sm transition-all ${view === 'groups' ? 'border-primary text-primary font-bold' : 'border-transparent text-slate-500 dark:text-slate-400 font-medium'}`}
+                        >
+                            群组
+                        </button>
+                    </div>
+                    
+                    <div class="flex-1 overflow-y-auto hide-scrollbar bg-slate-50 dark:bg-slate-900/50 pb-20">
+                        {view === 'friends' ? (
+                            <>
+                                <div class="px-4 py-2 bg-slate-100/50 dark:bg-slate-800/50">
+                                    <span class="text-xs font-bold text-slate-400 uppercase tracking-widest">A</span>
+                                </div>
+                                <div onClick={() => navigate('/user/anna')} class="flex items-center gap-3 px-4 py-3 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 cursor-pointer">
+                                    <img class="size-10 rounded-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCgcfjQXHesrjvppKG_nZX8_ZwxybR_tdAaVtLWXTsJMFhQbL1BeZ3tvZb_HOz1cRpuxrnz2IWUWTk0LTrGgWCrXEUI0UBHYuHnFCKeqWYlIOVj1lDOAWaRarPQHI2uU_L0M8v6x9t6LxCy3nlJlTF5qUc25WxlE-n6Ie8UwZeRwzaAOH9_FW92CD_tsx5UalSvf-Q7-nSvk6VsTkkGsntWl_vgrM4VFu-xeGCOfMZ9qdLoOfaj0YO3SRAkDZcWskk5EwaEzQrCZGSW"/>
+                                    <div class="flex-1">
+                                        <p class="font-semibold text-sm">安娜</p>
+                                        <div class="flex items-center gap-1.5">
+                                            <div class="size-1.5 rounded-full bg-emerald-500"></div>
+                                            <p class="text-xs text-slate-400">在线</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="px-4 py-2 bg-slate-100/50 dark:bg-slate-800/50">
+                                    <span class="text-xs font-bold text-slate-400 uppercase tracking-widest">L</span>
+                                </div>
+                                <div onClick={() => navigate('/user/lin')} class="flex items-center gap-3 px-4 py-3 bg-white dark:bg-slate-900 cursor-pointer">
+                                    <img class="size-10 rounded-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCwDRTYFC22561Lo5e-FAkWb0odNDQn4RvC_POB_XFreIFwDhyvmni6VYVyj3ea0cQYU1zN4tgMwIq5kb4gHBaZK-9vlKG1Wi_yY_qpDcPVB-cMZwV8BfQ7UzdLUWQvGdoQX8xGZ2naOwovIhRn9gvV54XNYggKKNPg_irn0wZR8ThMZpOHlSY6vgc5dMckW15M1wGVUa1nGc8ni4k_gFsStA3Mdzzq1WutSYIWvVoF-KipL6EYYMv4lBWT6J0tFOAh6Y6Ok5nWWEjs"/>
+                                    <div class="flex-1">
+                                        <p class="font-semibold text-sm">林嘉豪</p>
+                                        <div class="flex items-center gap-1.5">
+                                            <div class="size-1.5 rounded-full bg-emerald-500"></div>
+                                            <p class="text-xs text-slate-400">在线</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </>
+                        ) : (
+                            <div class="p-2 space-y-1">
+                                {groupList.map(group => (
+                                    <div key={group.id} onClick={() => navigate('/chat/design')} class="flex items-center gap-3 px-4 py-3 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                                        <div class="size-10 rounded-lg overflow-hidden shrink-0 border border-slate-100 dark:border-slate-800">
+                                            <img class="w-full h-full object-cover" src={group.image} alt={group.name} />
+                                        </div>
+                                        <div class="flex-1 min-w-0">
+                                            <p class="font-semibold text-sm truncate">{group.name}</p>
+                                            <p class="text-xs text-slate-400">{group.members} 位成员</p>
+                                        </div>
+                                        <span class="material-symbols-outlined text-slate-400 text-sm">chevron_right</span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                    
+                    {view === 'friends' && (
+                        <div class="absolute right-1 top-1/2 -translate-y-1/2 flex flex-col gap-1 items-center py-2 px-1 rounded-full bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm">
+                            <span class="text-[10px] font-bold text-primary">A</span>
+                            <span class="text-[10px] font-bold text-slate-400">L</span>
+                            <span class="text-[10px] font-bold text-slate-400">#</span>
+                        </div>
+                    )}
+                    <BottomNav activeTab="contacts" />
+                </div>
+            );
+        };
+
+        const ChatDetailScreen = () => {
+            const navigate = useNavigate();
+            const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+            const emojis = ['😀', '😃', '😄', '😁', '😆', '😅', '😂', '🤣', '😊', '😇', '🙂', '🙃', '😉', '😌', '😍', '🥰', '😘', '😗', '😙', '😚', '😋', '😛', '😝', '😜', '🤪', '🤨', '🧐', '🤓', '😎', '🤩'];
+
+            return (
+                <div class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 h-screen flex flex-col relative">
+                    <header class="sticky top-0 z-10 flex items-center justify-between bg-white dark:bg-slate-800 backdrop-blur-md px-4 py-3 border-b border-slate-200 dark:border-slate-800">
+                        <button onClick={() => navigate(-1)} class="flex items-center justify-center p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
+                            <span class="material-symbols-outlined text-2xl">arrow_back_ios_new</span>
+                        </button>
+                        <div class="flex flex-col items-center">
+                            <h1 class="text-base font-bold leading-none">Sarah Jenkins</h1>
+                            <span class="text-[10px] text-emerald-500 font-medium">在线</span>
+                        </div>
+                        <button onClick={() => navigate('/chat-settings')} class="flex items-center justify-center p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
+                            <span class="material-symbols-outlined text-2xl">more_horiz</span>
+                        </button>
+                    </header>
+                    <main class="flex-1 overflow-y-auto p-4 space-y-6">
+                        <div class="flex justify-center"><span class="text-xs text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-full">下午 2:30</span></div>
+                        
+                        <div class="flex items-end gap-3 max-w-[85%]">
+                            <div class="w-10 h-10 rounded-full bg-cover bg-center shrink-0 border border-slate-200 dark:border-slate-700" style={{backgroundImage: "url('https://lh3.googleusercontent.com/aida-public/AB6AXuD2hLR2KEQAWcjPG7Ey6K7cRGoST0YbwwtL4OHbQA7LN3IC_iW2jiqh22FWHMuvh_lKU9MoQhzk7zrripluNhUyhEioDqN4bp-uDp2otF5RUible5XE-gvGT8178z4rCGvBIsj5NIoqXcf6GpyhRIRhTN5ppzHbaoFtFVvLQu652hBElAUFjj2Snb7QnEFoaLQ0NIwXFzyH7mJ7bK8XRm7inWwD6QR6B-KzX9RDJdH2PpglZzJ6xvKcn7v2S9zxRcwLPI0eVkdwotLr')"}}></div>
+                            <div class="flex flex-col gap-1">
+                                <span class="text-xs text-slate-500 ml-1">Sarah Jenkins</span>
+                                <div class="bg-white dark:bg-slate-800 p-3 rounded-2xl rounded-bl-none shadow-sm text-sm leading-relaxed border border-slate-100 dark:border-slate-700">你好！最近怎么样？我刚好看到一家新开的咖啡店，感觉你会喜欢。</div>
+                                <span class="text-[10px] text-slate-400 ml-1">14:31</span>
+                            </div>
+                        </div>
+
+                        <div class="flex items-end gap-3 justify-end max-w-[85%] ml-auto">
+                            <div class="flex flex-col gap-1 items-end">
+                                <div class="bg-primary text-white p-3 rounded-2xl rounded-br-none shadow-md shadow-primary/20 text-sm leading-relaxed">我很好，谢谢！你是说那家在街角新开的吗？</div>
+                                <div class="flex items-center gap-1 mr-1">
+                                    <span class="text-[10px] text-slate-400">14:32</span>
+                                    <span class="material-symbols-outlined text-sm text-white">done_all</span>
+                                </div>
+                            </div>
+                            <div class="w-10 h-10 rounded-full bg-cover bg-center shrink-0 border border-primary/20" style={{backgroundImage: "url('https://lh3.googleusercontent.com/aida-public/AB6AXuD2ygalVO7lfPlK9_0NoweQkDEYUbZedfNT0C3fw1rYi49ZOvOnjRYO36kVjxEFFeWbmkci8QmY9O6h6GMtOEATniu8I2SXc7d_dkEROX0p7wpdBH2vITXSgQIhVYEjTJSHvrmaInCPMhp-8esuKybMmL9roalhtTKR52dNif1qVk6pJ1z4HrZ90OmVlrhEJEWjI_N5YThV7uSkO5ToLQgreLOiS_kRyXL5jk51XKnSvdm3W2J78icORrUyKcA3j8M3x0rO3MUWfHpa')"}}></div>
+                        </div>
+
+                        <div class="flex items-end gap-3 max-w-[85%]">
+                            <div class="w-10 h-10 rounded-full bg-cover bg-center shrink-0 border border-slate-200 dark:border-slate-700" style={{backgroundImage: "url('https://lh3.googleusercontent.com/aida-public/AB6AXuBBHouFC0yVWefJyED8kiaTUWJvF4Yp3fBgpABHep9EZ8pWBjWjdOZLR0R8Bn87OP1l3OfDkT8gztiaH5GFuRJKHNrp9ILwtvFIMXJvRpX7qaqWTaqOdKC74SYHafcFnUk0KhBpeJsHS1Qlfw62mG-jI3kKn9RxZlTR8T4MxNJmReTXa6kealb1HbW4iePw8z9WkDKeelkAzpWXV-ahsy-P-TmnYckNA5VSSXoBZ-rvs702cYTWxYH7hTaKB7GFUkD1dp38EshZ4lRN')"}}></div>
+                            <div class="flex flex-col gap-1">
+                                <span class="text-xs text-slate-500 ml-1">Sarah Jenkins</span>
+                                <div class="bg-white dark:bg-slate-800 p-1.5 rounded-2xl rounded-bl-none shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden">
+                                    <div class="aspect-video w-56 bg-slate-200 dark:bg-slate-700 rounded-xl bg-cover bg-center" style={{backgroundImage: "url('https://lh3.googleusercontent.com/aida-public/AB6AXuDuZeEflgJaC2u_BY7sflb9FN93GX--619qeVIg78cdkL931957znLU697tyWF3cd1x9NHDIQ3IeBmpEd0iocl3FiPH926roZvBDwZ8cZCnGtLNMJnAZb1NOoR7C8o5XcqVjCwpHjdtG2InRFr7RCTtkRk0ElVZjVJ2nlISroKlB3V61DlqkbJNn245p_jhJBCXIP_4fzdRizCZ1yvoAj2cNlxzvG7X8C5Ev5lILuCD5WJ4z2dbkEmBzI4cYaSXejtQUW-ljBI0Ap78')"}}></div>
+                                    <p class="p-2 text-sm">看这张照片，设计感真的很棒！</p>
+                                </div>
+                                <span class="text-[10px] text-slate-400 ml-1">14:35</span>
+                            </div>
+                        </div>
+                    </main>
+                    <footer class="bg-white dark:bg-background-dark border-t border-slate-200 dark:border-slate-800 p-3 pb-8 relative">
+                        {showEmojiPicker && (
+                            <div className="absolute bottom-full left-0 w-full bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 p-4 shadow-xl animate-in slide-in-from-bottom-2 duration-200">
+                                <div className="grid grid-cols-8 gap-2">
+                                    {emojis.map((emoji, index) => (
+                                        <button 
+                                            key={index} 
+                                            onClick={() => setShowEmojiPicker(false)}
+                                            className="text-2xl hover:bg-slate-100 dark:hover:bg-slate-700 p-1 rounded transition-colors"
+                                        >
+                                            {emoji}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                        <div class="flex items-center gap-2 max-w-4xl mx-auto">
+                            <div class="flex-1 relative">
+                                <input 
+                                    onFocus={() => setShowEmojiPicker(false)}
+                                    class="w-full bg-slate-100 dark:bg-slate-800 border-none rounded-full py-2.5 px-4 text-sm focus:ring-2 focus:ring-primary/50 transition-all" 
+                                    placeholder="输入消息..." 
+                                    type="text"
+                                />
+                                <button 
+                                    onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                                    class={`absolute right-3 top-1/2 -translate-y-1/2 transition-colors ${showEmojiPicker ? 'text-primary' : 'text-slate-500 hover:text-primary'}`}
+                                >
+                                    <span class="material-symbols-outlined text-2xl">sentiment_satisfied</span>
+                                </button>
+                            </div>
+                            <button class="p-2 flex items-center justify-center rounded-full text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800"><span class="material-symbols-outlined text-2xl">image</span></button>
+                        </div>
+                    </footer>
+                </div>
+            );
+        };
+
+        const GroupChatDetailScreen = () => {
+            const navigate = useNavigate();
+            const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+            const [showNotice, setShowNotice] = useState(true);
+            const [isNoticeDetailOpen, setIsNoticeDetailOpen] = useState(false);
+            const emojis = ['😀', '😃', '😄', '😁', '😆', '😅', '😂', '🤣', '😊', '😇', '🙂', '🙃', '😉', '😌', '😍', '🥰', '😘', '😗', '😙', '😚', '😋', '😛', '😝', '😜', '🤪', '🤨', '🧐', '🤓', '😎', '🤩'];
+
+            const noticeContent = "欢迎来到 UI/UX 设计交流群！请遵守群规，严禁发布广告。本群旨在为设计师提供一个纯粹的交流空间，分享灵感和经验。";
+
+            return (
+                <div class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 h-screen flex flex-col overflow-hidden relative">
+                    <header class="sticky top-0 z-20 flex items-center justify-between bg-white dark:bg-slate-800 backdrop-blur-md px-4 py-3 border-b border-slate-200 dark:border-slate-800">
+                        <button onClick={() => navigate(-1)} class="flex items-center justify-center p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
+                            <span class="material-symbols-outlined text-2xl">arrow_back_ios_new</span>
+                        </button>
+                        <div class="flex flex-col items-center">
+                            <h1 class="text-base font-bold leading-none">UI/UX 设计交流群</h1>
+                            <span class="text-[10px] text-slate-500 font-medium">128 位成员</span>
+                        </div>
+                        <button onClick={() => navigate('/group-settings')} class="flex items-center justify-center p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
+                            <span class="material-symbols-outlined text-2xl">more_horiz</span>
+                        </button>
+                    </header>
+                    
+                    {showNotice && (
+                        <div 
+                            onClick={() => setIsNoticeDetailOpen(true)}
+                            className="bg-primary/10 dark:bg-primary/20 px-4 py-2 flex items-center gap-3 animate-in slide-in-from-top duration-300 cursor-pointer hover:bg-primary/20 dark:hover:bg-primary/30 transition-colors"
+                        >
+                            <span className="material-symbols-outlined text-primary text-sm shrink-0">campaign</span>
+                            <p className="text-xs text-primary font-medium flex-1 truncate">
+                                群公告：{noticeContent}
+                            </p>
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); setShowNotice(false); }} 
+                                className="text-primary/60 hover:text-primary"
+                            >
+                                <span className="material-symbols-outlined text-sm">close</span>
+                            </button>
+                        </div>
+                    )}
+
+                    {isNoticeDetailOpen && (
+                        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
+                            <div className="bg-white dark:bg-slate-800 w-full max-w-xs rounded-2xl p-6 shadow-2xl animate-in zoom-in-95 duration-200">
+                                <div className="flex items-center gap-2 mb-4 text-primary">
+                                    <span className="material-symbols-outlined">campaign</span>
+                                    <h3 className="text-lg font-bold">群公告</h3>
+                                </div>
+                                <div className="max-h-[60vh] overflow-y-auto mb-6">
+                                    <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">
+                                        {noticeContent}
+                                    </p>
+                                </div>
+                                <button 
+                                    onClick={() => setIsNoticeDetailOpen(false)}
+                                    className="w-full py-3 rounded-xl bg-primary text-white font-bold text-sm hover:bg-primary/90 transition-colors shadow-lg shadow-primary/20"
+                                >
+                                    我知道了
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    <main class="flex-1 overflow-y-auto p-4 space-y-6">
+                        <div class="flex items-start gap-3">
+                            <div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full w-10 h-10 shrink-0 border border-slate-200" style={{backgroundImage: 'url("https://lh3.googleusercontent.com/aida-public/AB6AXuCnz_I3EA-LeVTj0N3guxULHnErnVCg4sQhqN8TTQFmPKmFXWx0y2S9GEHG8pLpWXUt0yGb4f09ikOduHY3Qzb4CxLTMnNyciV1XUIMCaUw0zcy5bZXYU64B7hix4j34jvXUn_ppT-yiyR8j3kbhgwfKZCrFb_9BQ8BeIwRX7asGF_AZrfn2dsROLgmHD_vlZaKEGG-qyEJsaGIE0632IhuD97Vz3iiSwCi-bj1Ka3wtTOFKrTz6F-g7uI9VvrPWaRigIpVqzsE-hyd")'}}></div>
+                            <div class="flex flex-col gap-1 items-start max-w-[75%]">
+                                <span class="text-slate-500 text-xs font-medium ml-1">张伟</span>
+                                <div class="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 px-4 py-2.5 rounded-xl rounded-bl-none shadow-sm text-sm leading-relaxed">大家对这个新的 UI 规范有什么看法？我觉得目前的间距设置可以再大胆一点。</div>
+                            </div>
+                        </div>
+                        <div class="flex items-start gap-3 justify-end">
+                            <div class="flex flex-col gap-1 items-end max-w-[75%]">
+                                <div class="bg-primary text-white px-4 py-2.5 rounded-xl rounded-br-none shadow-sm text-sm leading-relaxed">同意，蓝色调可以更亮一点，增加一些活力。</div>
+                            </div>
+                            <div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full w-10 h-10 shrink-0 border border-primary/20" style={{backgroundImage: 'url("https://lh3.googleusercontent.com/aida-public/AB6AXuClMzyfU2-oKwOPgGhKuOW0BBsvJdESzjwzJdQOy8SSZX3F4wpBH6_mj0z6M-cplRgsbPj1poXOLGplNsWTmnBIgQbUBxALiGX9DzK2DHfsVYYl1zIZFhVjWY7FnJQA26ZaUGWYGE68VmnxdUOVRlAN5E7DMzwzbeXY8fykGoE0uVsZcXZ_fhV0j0HE29rPH8qilOkgMZeKhVj1YEzftbveiZ4Tlw3ObTOIM5w3RNCQTfk0B_Ti0_UBdlN8IdXcuYWVJGiuiuumo2wB")'}}></div>
+                        </div>
+                    </main>
+                    <footer class="bg-white dark:bg-background-dark border-t border-slate-200 dark:border-slate-800 p-3 pb-8 relative">
+                        {showEmojiPicker && (
+                            <div className="absolute bottom-full left-0 w-full bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 p-4 shadow-xl animate-in slide-in-from-bottom-2 duration-200">
+                                <div className="grid grid-cols-8 gap-2">
+                                    {emojis.map((emoji, index) => (
+                                        <button 
+                                            key={index} 
+                                            onClick={() => setShowEmojiPicker(false)}
+                                            className="text-2xl hover:bg-slate-100 dark:hover:bg-slate-700 p-1 rounded transition-colors"
+                                        >
+                                            {emoji}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                        <div class="flex items-center gap-2 max-w-4xl mx-auto">
+                            <div class="flex-1 relative">
+                                <input 
+                                    onFocus={() => setShowEmojiPicker(false)}
+                                    class="w-full bg-slate-100 dark:bg-slate-800 border-none rounded-full py-2.5 px-4 text-sm focus:ring-2 focus:ring-primary/50 transition-all" 
+                                    placeholder="输入消息..." 
+                                    type="text"
+                                />
+                                <button 
+                                    onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                                    class={`absolute right-3 top-1/2 -translate-y-1/2 transition-colors ${showEmojiPicker ? 'text-primary' : 'text-slate-500 hover:text-primary'}`}
+                                >
+                                    <span class="material-symbols-outlined text-2xl">sentiment_satisfied</span>
+                                </button>
+                            </div>
+                            <button class="p-2 flex items-center justify-center rounded-full text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800"><span class="material-symbols-outlined text-2xl">image</span></button>
+                        </div>
+                    </footer>
+                </div>
+            );
+        };
+
+        const AddFriendScreen = () => {
+            const navigate = useNavigate();
+            return (
+                <div class="relative flex h-screen max-w-md mx-auto flex-col bg-white dark:bg-slate-900 overflow-hidden shadow-2xl">
+                    <header class="flex items-center justify-between px-4 pt-6 pb-2 bg-white dark:bg-slate-800">
+                        <button onClick={() => navigate(-1)} class="size-10 flex items-center justify-center text-slate-900 dark:text-slate-100"><span class="material-symbols-outlined text-2xl">chevron_left</span></button>
+                        <h1 class="text-2xl font-bold tracking-tight flex-1 text-center">添加好友</h1>
+                        <button onClick={() => navigate('/search-group')} class="size-10 flex items-center justify-center"><span class="material-symbols-outlined text-2xl text-primary">group_add</span></button>
+                    </header>
+                    <div class="px-4 py-3 bg-white dark:bg-slate-900">
+                        <div class="flex w-full items-center rounded-xl bg-slate-200/50 dark:bg-slate-800/50 px-4 py-2.5">
+                            <span class="material-symbols-outlined text-slate-500 dark:text-slate-400 text-xl">search</span>
+                            <input class="flex w-full border-none bg-transparent focus:outline-0 focus:ring-0 text-sm placeholder:text-slate-500 dark:placeholder:text-slate-400" placeholder="搜索账号" type="text" defaultValue="张三"/>
+                        </div>
+                        <p class="mt-4 text-center text-sm text-slate-500 dark:text-slate-400">我的账号: <span class="text-primary font-medium">im_user_888</span></p>
+                    </div>
+                    <div class="flex-1 overflow-y-auto bg-slate-50 dark:bg-slate-900/50 p-4 space-y-3">
+                        <h2 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 px-1">搜索结果</h2>
+                        <div class="flex items-center gap-3 p-3 bg-white dark:bg-slate-800 rounded-xl shadow-sm cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors" onClick={() => navigate('/user/zhang')}>
+                            <img class="size-12 rounded-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDY6zpa7lOqIdXBfAeQzRk1D4uhzxCvQjd-_wA3zQv96cM_0W4k8JmfEeamfKTmjo4y2y5FzCXQSMA-uYdfJu94He1AX1GOPaUhZSaN5cKqaWmzODWBUV12bjPqIQwLKVq4CFPRW18Z0wjtd8LCnaRuROLKn3TR_PF-pKiHOAwG3QAztTPH_lL740C56xmNcKBmkiAT7a1j5wx149PdRaKCWPlvNLXLaRgPrCxIKoCKlKiKQQ6-7R0wy8EPlGaKEKp2m9XOxRgKwDoy" />
+                            <div class="flex-1 min-w-0"><p class="text-sm font-bold text-slate-900 dark:text-white truncate">张三</p><p class="text-xs text-slate-500 dark:text-slate-400">ID: zhang_san_99</p></div>
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); navigate('/send-request'); }}
+                                class="bg-primary text-white text-xs font-semibold px-4 py-1.5 rounded-full"
+                            >
+                                添加
+                            </button>
+                        </div>
+                    </div>
+                    <BottomNav activeTab="contacts" />
+                </div>
+            );
+        };
+
+        const SendFriendRequestScreen = () => {
+            const navigate = useNavigate();
+            const [message, setMessage] = useState('你好，我是张子谦');
+            const [isLoading, setIsLoading] = useState(false);
+
+            const handleSend = () => {
+                setIsLoading(true);
+                // Simulate network request
+                setTimeout(() => {
+                    setIsLoading(false);
+                    navigate(-1);
+                }, 1500);
+            };
+
+            return (
+                <div class="relative flex h-screen max-w-md mx-auto flex-col bg-white dark:bg-slate-900 overflow-hidden shadow-2xl">
+                    <header class="flex items-center justify-between px-4 pt-6 pb-2 border-b border-slate-100 dark:border-slate-800">
+                        <button onClick={() => navigate(-1)} disabled={isLoading} class="size-10 flex items-center justify-center text-slate-900 dark:text-slate-100 disabled:opacity-50"><span class="material-symbols-outlined text-2xl">chevron_left</span></button>
+                        <h1 class="text-xl font-bold tracking-tight flex-1 text-center">发送申请</h1>
+                        <button onClick={handleSend} disabled={isLoading} class="size-10 flex items-center justify-center text-primary font-bold text-sm disabled:opacity-50">发送</button>
+                    </header>
+                    
+                    <div class="flex-1 overflow-y-auto bg-slate-50 dark:bg-slate-900/50 p-6 space-y-8">
+                        {/* User Info Card */}
+                        <div class="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-sm flex flex-col items-center gap-4">
+                            <img class="size-24 rounded-2xl object-cover shadow-md" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDY6zpa7lOqIdXBfAeQzRk1D4uhzxCvQjd-_wA3zQv96cM_0W4k8JmfEeamfKTmjo4y2y5FzCXQSMA-uYdfJu94He1AX1GOPaUhZSaN5cKqaWmzODWBUV12bjPqIQwLKVq4CFPRW18Z0wjtd8LCnaRuROLKn3TR_PF-pKiHOAwG3QAztTPH_lL740C56xmNcKBmkiAT7a1j5wx149PdRaKCWPlvNLXLaRgPrCxIKoCKlKiKQQ6-7R0wy8EPlGaKEKp2m9XOxRgKwDoy" />
+                            <div class="text-center">
+                                <h2 class="text-xl font-bold text-slate-900 dark:text-white">张三</h2>
+                                <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">账号: zhang_san_99</p>
+                            </div>
+                        </div>
+
+                        {/* Request Message */}
+                        <div class="space-y-3">
+                            <label class="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">验证消息</label>
+                            <div class="relative group">
+                                <textarea 
+                                    rows="4"
+                                    value={message}
+                                    onChange={(e) => setMessage(e.target.value)}
+                                    placeholder="输入验证消息..."
+                                    class="w-full bg-white dark:bg-slate-800 border-none rounded-xl py-4 px-4 text-sm focus:ring-2 focus:ring-primary/50 shadow-sm transition-all resize-none"
+                                ></textarea>
+                                <button 
+                                    onClick={() => setMessage('')}
+                                    class="absolute right-3 top-3 text-slate-300 hover:text-slate-500 dark:text-slate-600 dark:hover:text-slate-400"
+                                >
+                                    <span class="material-symbols-outlined text-lg">cancel</span>
+                                </button>
+                            </div>
+                            <p class="text-[10px] text-slate-400 px-1 text-right">对方将在收到申请时看到该消息</p>
+                        </div>
+
+                        <div class="pt-4">
+                            <button 
+                                onClick={handleSend} 
+                                disabled={isLoading}
+                                class="w-full bg-primary text-white font-bold py-4 rounded-xl shadow-lg shadow-primary/25 active:scale-[0.98] transition-all disabled:opacity-80 flex items-center justify-center gap-2"
+                            >
+                                {isLoading && (
+                                    <svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                )}
+                                {isLoading ? '正在发送...' : '确定发送'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const SearchGroupScreen = () => {
+            const navigate = useNavigate();
+            return (
+                <div class="relative flex h-screen max-w-md mx-auto flex-col bg-white dark:bg-slate-900 overflow-hidden shadow-2xl">
+                    <header class="flex items-center justify-between px-4 pt-6 pb-2 bg-white dark:bg-slate-800">
+                        <button onClick={() => navigate(-1)} class="size-10 flex items-center justify-center text-slate-900 dark:text-slate-100"><span class="material-symbols-outlined text-2xl">chevron_left</span></button>
+                        <h1 class="text-2xl font-bold tracking-tight flex-1 text-center">搜索群聊</h1>
+                        <button onClick={() => navigate('/create-group')} class="size-10 flex items-center justify-center"><span class="material-symbols-outlined text-2xl text-primary">group_add</span></button>
+                    </header>
+                    <div class="px-4 py-3 bg-white dark:bg-slate-900">
+                        <div class="flex w-full items-center rounded-xl bg-slate-200/50 dark:bg-slate-800/50 px-4 py-2.5">
+                            <span class="material-symbols-outlined text-slate-500 dark:text-slate-400 text-xl">search</span>
+                            <input class="flex w-full border-none bg-transparent focus:outline-0 focus:ring-0 text-sm placeholder:text-slate-500 dark:placeholder:text-slate-400" placeholder="搜索群号/群名称" type="text" defaultValue="UI/UX"/>
+                        </div>
+                    </div>
+                    <div class="flex-1 overflow-y-auto bg-slate-50 dark:bg-slate-900/50 p-4 space-y-3">
+                        <h2 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 px-1">搜索结果</h2>
+                        <div class="flex items-center gap-3 p-3 bg-white dark:bg-slate-800 rounded-xl shadow-sm cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
+                            <img class="size-12 rounded-xl object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDoN6Pn_98sB15EbgkETLgkYuA-Bu88oMCCqkJl8remLQu9ooQAoa_fRpCYw9KmRcTao882Lc8esI16HXU-GSFnJaevpI7_RLfvAEyiFTmUBbM4LA-cZ3vhGuVY-vRDRqr1_-G0pCDfKiz6G9-O65twuM6nRxgB5hZrsqMdy6U7fy5I8BccmX2or8G1_7fpihZB7m5YqWDprN9GJs9wiFBw-7Un-SEajWaCPwJxSFEBlmKjU6ndWUpuEzOpA5iSLMi5OV7BZsSDcLwJ" />
+                            <div class="flex-1 min-w-0">
+                                <p class="text-sm font-bold text-slate-900 dark:text-white truncate">UI/UX 设计交流群</p>
+                                <p class="text-xs text-slate-500 dark:text-slate-400">群ID: 10293847</p>
+                            </div>
+                            <button class="bg-primary text-white text-xs font-semibold px-4 py-1.5 rounded-full">加入</button>
+                        </div>
+                    </div>
+                    <BottomNav activeTab="contacts" />
+                </div>
+            );
+        };
+
+        const CreateGroupScreen = () => {
+            const navigate = useNavigate();
+            const [isPublic, setIsPublic] = useState(true);
+            const [isLoading, setIsLoading] = useState(false);
+            const [showSuccess, setShowSuccess] = useState(false);
+
+            const handleCreate = () => {
+                setIsLoading(true);
+                setTimeout(() => {
+                    setIsLoading(false);
+                    setShowSuccess(true);
+                    setTimeout(() => {
+                        navigate('/');
+                    }, 1500);
+                }, 1500);
+            };
+
+            return (
+                <div class="relative flex h-screen max-w-md mx-auto flex-col bg-white dark:bg-slate-900 overflow-hidden shadow-2xl">
+                    {showSuccess && (
+                        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/20 backdrop-blur-[2px]">
+                            <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-2xl flex flex-col items-center gap-4 animate-in zoom-in duration-300">
+                                <div className="size-16 rounded-full bg-emerald-500/10 flex items-center justify-center">
+                                    <span className="material-symbols-outlined text-emerald-500 text-4xl">check_circle</span>
+                                </div>
+                                <div className="text-center">
+                                    <p className="text-lg font-bold">创建成功</p>
+                                    <p className="text-sm text-slate-500">正在为您跳转到聊天列表...</p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                    <header class="flex items-center justify-between px-4 pt-6 pb-2 border-b border-slate-100 dark:border-slate-800">
+                        <button onClick={() => navigate(-1)} disabled={isLoading} class="size-10 flex items-center justify-center text-slate-900 dark:text-slate-100 disabled:opacity-50"><span class="material-symbols-outlined text-2xl">chevron_left</span></button>
+                        <h1 class="text-xl font-bold tracking-tight flex-1 text-center">创建群聊</h1>
+                        <button onClick={handleCreate} disabled={isLoading} class="size-10 flex items-center justify-center text-primary font-bold text-sm disabled:opacity-50">
+                            {isLoading ? (
+                                <svg class="animate-spin h-5 w-5 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                            ) : '完成'}
+                        </button>
+                    </header>
+                    
+                    <div class="flex-1 overflow-y-auto bg-slate-50 dark:bg-slate-900/50 p-6 space-y-8">
+                        {/* Avatar Section */}
+                        <div class="flex flex-col items-center gap-4">
+                            <div class="relative">
+                                <div class="size-24 rounded-2xl bg-white dark:bg-slate-800 flex items-center justify-center border-2 border-dashed border-slate-300 dark:border-slate-700 text-slate-400 overflow-hidden group hover:border-primary transition-colors cursor-pointer">
+                                    <span class="material-symbols-outlined text-4xl group-hover:scale-110 transition-transform">add_a_photo</span>
+                                </div>
+                                <div class="absolute -bottom-2 -right-2 bg-primary text-white size-8 rounded-full flex items-center justify-center border-4 border-slate-50 dark:border-slate-900">
+                                    <span class="material-symbols-outlined text-sm">edit</span>
+                                </div>
+                            </div>
+                            <p class="text-xs text-slate-500 font-medium">点击设置群组头像</p>
+                        </div>
+
+                        {/* Form Section */}
+                        <div class="space-y-6">
+                            <div class="space-y-2">
+                                <label class="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">群组名称</label>
+                                <input 
+                                    type="text" 
+                                    placeholder="输入群名称..."
+                                    class="w-full bg-white dark:bg-slate-800 border-none rounded-xl py-3 px-4 text-sm focus:ring-2 focus:ring-primary/50 shadow-sm transition-all"
+                                />
+                            </div>
+
+                            <div class="space-y-2">
+                                <label class="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">群组详情</label>
+                                <textarea 
+                                    rows="3"
+                                    placeholder="介绍一下这个群组吧..."
+                                    class="w-full bg-white dark:bg-slate-800 border-none rounded-xl py-3 px-4 text-sm focus:ring-2 focus:ring-primary/50 shadow-sm transition-all resize-none"
+                                ></textarea>
+                            </div>
+
+                            <div class="bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm flex items-center justify-between">
+                                <div class="flex items-center gap-3">
+                                    <span class="material-symbols-outlined text-primary">public</span>
+                                    <div>
+                                        <p class="text-sm font-bold">是否公开</p>
+                                        <p class="text-[10px] text-slate-500">公开群聊可被搜索查找到</p>
+                                    </div>
+                                </div>
+                                <button 
+                                    onClick={() => setIsPublic(!isPublic)}
+                                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${isPublic ? 'bg-primary' : 'bg-slate-300 dark:bg-slate-700'}`}
+                                >
+                                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isPublic ? 'translate-x-6' : 'translate-x-1'}`} />
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="pt-4">
+                            <button 
+                                onClick={handleCreate} 
+                                disabled={isLoading}
+                                class="w-full bg-primary text-white font-bold py-4 rounded-xl shadow-lg shadow-primary/25 active:scale-[0.98] transition-all disabled:opacity-80 flex items-center justify-center gap-2"
+                            >
+                                {isLoading && (
+                                    <svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                )}
+                                {isLoading ? '正在创建...' : '立即创建'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const PersonalCenterScreen = () => {
+            const navigate = useNavigate();
+            return (
+                <div class="relative flex h-screen max-w-md mx-auto flex-col bg-background-light dark:bg-background-dark overflow-hidden shadow-2xl">
+                    <header class="flex items-center justify-between px-4 pt-6 pb-2 bg-white dark:bg-slate-800">
+                        <div class="size-10"></div>
+                        <h1 class="text-2xl font-bold tracking-tight flex-1 text-center">个人中心</h1>
+                        <div class="flex items-center justify-end size-10"><span class="material-symbols-outlined text-slate-400 cursor-pointer">settings</span></div>
+                    </header>
+                    <div class="flex-1 flex flex-col items-center justify-start pt-12 px-6">
+                        <div class="relative group cursor-pointer">
+                            <div class="h-32 w-32 rounded-2xl bg-primary/10 overflow-hidden border-2 border-slate-100 dark:border-slate-800 shadow-sm">
+                                <img class="h-full w-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCh5gKUqos-qENhagc4pmpAmbNPpxGykLA03SybnF4H4vwoFHyTs-yZdw4vZ_ID87D1AByDCEvrSRrVUTqCjBuh8VUYRf-PPT_gYXhVP2c5ArXasEIv_l5YvC-lvZobI9hbMbv-MWGhsTM_PcgqgOHBaPeqtBHdrFwd7XPo-9TVyAOrVgLrIWROPsg4YSzMyjr1OezbvLyxKtTbnAtpsRvbzjzuYPIi4CMP2DRTTx4oK1NmpHYDxTrXYmbT6LcsqmZrIDXOWkxWTKjV" />
+                            </div>
+                            <div class="absolute -bottom-1 -right-1 bg-primary text-white p-1.5 rounded-full border-4 border-white dark:border-slate-900 shadow-md"><span class="material-symbols-outlined text-[18px] block">photo_camera</span></div>
+                        </div>
+                        <div class="mt-8 flex flex-col items-center gap-2">
+                            <div class="flex items-center gap-2 group cursor-pointer"><h2 class="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">张子谦</h2><span class="material-symbols-outlined text-slate-400 text-xl">edit_square</span></div>
+                            <div class="flex items-center gap-2 px-3 py-1 bg-slate-100 dark:bg-slate-800 rounded-full"><p class="text-slate-500 dark:text-slate-400 text-xs font-medium">账号：ZQS_992834</p><span class="material-symbols-outlined text-slate-400 text-sm cursor-pointer">content_copy</span></div>
+                        </div>
+                    </div>
+                    <BottomNav activeTab="profile" />
+                </div>
+            );
+        };
+
+        const ChatSettingsScreen = () => {
+            const navigate = useNavigate();
+            const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+
+            const handleClearChat = () => {
+                setIsConfirmModalOpen(false);
+                // In a real app, logic to clear would go here
+                alert('聊天记录已清空');
+            };
+
+            return (
+                <div class="min-h-screen w-full bg-background-light dark:bg-background-dark pb-10">
+                    <header class="flex items-center bg-white dark:bg-slate-900 p-4 pb-2 border-b border-slate-200 dark:border-slate-800">
+                        <button onClick={() => navigate(-1)} class="text-slate-900 dark:text-slate-100 flex size-10 items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"><span class="material-symbols-outlined">arrow_back</span></button>
+                        <h2 class="text-slate-900 dark:text-slate-100 text-lg font-bold flex-1 text-center pr-10">聊天详情</h2>
+                    </header>
+                    <div onClick={() => navigate('/user/sarah')} class="mt-4 flex items-center gap-4 bg-white dark:bg-slate-900 px-4 py-4 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                        <div class="h-16 w-16 rounded-full bg-cover bg-center border-2 border-primary/10" style={{backgroundImage: 'url("https://lh3.googleusercontent.com/aida-public/AB6AXuBJAJQynqU1eG_6xnK7VppJdkw_yjIcY-7k-OagvyRF6tbm9OPTjpsNORZHXcG8JVnIfsamIjExjGTJCsme3yHCxjPl9yxzGL622SUXREZUGmF0-yWlmhoFsk4QVKR-oCVYh3kzmZk0rHVCn3Vz742AGmHJCx4Kjxw0blYZjtQngtz_nFCQuSeftm5iIYE5WRMkkXTGdHKNuJZtgmAY6jvy2V7wA1rMfzhkKEdICDIHs4bGR2oLiiiaiN-xa_dx2jcfTcrRJzKJFhIY")'}}></div>
+                        <div class="flex-1"><p class="text-lg font-bold">Sarah Jenkins</p><p class="text-primary text-sm">查看个人资料</p></div>
+                        <span class="material-symbols-outlined text-slate-400">chevron_right</span>
+                    </div>
+                    <div class="mt-6 bg-white dark:bg-slate-900 border-y border-slate-100 dark:border-slate-800">
+                        <div class="flex items-center justify-between px-4 py-4 border-b border-slate-50 dark:border-slate-800"><span>查找聊天记录</span><span class="material-symbols-outlined text-slate-400">chevron_right</span></div>
+                        <div class="flex items-center justify-between px-4 py-4"><span>消息免打扰</span><div class="w-12 h-6 bg-slate-200 dark:bg-slate-700 rounded-full relative"><div class="absolute right-1 top-1 size-4 bg-white rounded-full"></div></div></div>
+                    </div>
+                    <div class="mt-8 px-4 space-y-3">
+                        <button 
+                            onClick={() => setIsConfirmModalOpen(true)}
+                            class="w-full flex items-center justify-center gap-2 bg-white dark:bg-slate-900 border border-red-200 dark:border-red-900/30 text-red-500 font-semibold py-4 rounded-xl active:bg-slate-50 dark:active:bg-slate-800 transition-colors"
+                        >
+                            清空聊天记录
+                        </button>
+                    </div>
+
+                    <ConfirmationModal 
+                        isOpen={isConfirmModalOpen}
+                        title="清空聊天记录"
+                        message="确定要清空与 Sarah Jenkins 的聊天记录吗？此操作不可撤销。"
+                        onConfirm={handleClearChat}
+                        onCancel={() => setIsConfirmModalOpen(false)}
+                    />
+                </div>
+            );
+        };
+
+        const GroupSettingsScreen = () => {
+            const navigate = useNavigate();
+            const [isNoticeModalOpen, setIsNoticeModalOpen] = useState(false);
+            const [groupNotice, setGroupNotice] = useState('欢迎来到 UI/UX 设计交流群！请遵守群规。');
+            const [tempNotice, setTempNotice] = useState('');
+            // Mocking member count for the label
+            const memberCount = 128;
+
+            const handleOpenNotice = () => {
+                setTempNotice(groupNotice);
+                setIsNoticeModalOpen(true);
+            };
+
+            const handleSaveNotice = () => {
+                setGroupNotice(tempNotice);
+                setIsNoticeModalOpen(false);
+            };
+            
+            return (
+                <div class="min-h-screen w-full bg-background-light dark:bg-background-dark pb-10">
+                    <header class="sticky top-0 z-10 flex items-center bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-md p-4 border-b border-slate-200 dark:border-slate-800">
+                        <button onClick={() => navigate(-1)} class="size-10 flex items-center justify-center rounded-full"><span class="material-symbols-outlined">arrow_back</span></button>
+                        <h1 class="text-lg font-bold flex-1 text-center pr-10">聊天信息</h1>
+                    </header>
+                    <div class="bg-white dark:bg-slate-900/50 p-4">
+                        <div class="grid grid-cols-5 gap-4">
+                            {/* Showing 2 rows of members (10 items) */}
+                            {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(i => (
+                                <div key={i} class="flex flex-col items-center gap-2">
+                                    <div class="w-full aspect-square bg-slate-200 dark:bg-slate-800 rounded-xl bg-cover bg-center" style={{backgroundImage: `url(https://i.pravatar.cc/150?u=${i})`}}></div>
+                                    <p class="text-[10px] text-slate-500 truncate w-full text-center">成员{i}</p>
+                                </div>
+                            ))}
+                            {/* The "Add Member" button usually follows the list */}
+                            <div class="flex flex-col items-center gap-2">
+                                <div class="w-full aspect-square border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl flex items-center justify-center text-slate-400">
+                                    <span class="material-symbols-outlined">add</span>
+                                </div>
+                                <p class="text-[10px] text-slate-500">邀请</p>
+                            </div>
+                        </div>
+                        <button class="w-full mt-4 pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-center gap-1 text-slate-400 hover:text-primary transition-colors py-2">
+                            <span class="text-sm font-medium">查看全部 {memberCount} 名群成员</span>
+                            <span class="material-symbols-outlined text-sm">chevron_right</span>
+                        </button>
+                    </div>
+                    <div class="mt-4 bg-white dark:bg-slate-900/50">
+                        <div class="px-4 py-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
+                            <span>群聊名称</span>
+                            <span class="text-slate-500">UI/UX 设计交流群</span>
+                        </div>
+                        <div 
+                            onClick={handleOpenNotice}
+                            class="px-4 py-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors"
+                        >
+                            <span>群公告</span>
+                            <div class="flex items-center gap-1 min-w-0 flex-1 justify-end ml-4">
+                                <span class="text-slate-500 truncate text-sm">{groupNotice || '未设置'}</span>
+                                <span class="material-symbols-outlined text-slate-400 text-sm shrink-0">chevron_right</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-8 px-4">
+                        <button class="w-full bg-white dark:bg-slate-900/50 text-red-500 text-base font-bold py-4 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800">删除并退出</button>
+                    </div>
+
+                    {/* Group Notice Modal */}
+                    {isNoticeModalOpen && (
+                        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
+                            <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
+                                <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
+                                    <h3 className="text-lg font-bold">编辑群公告</h3>
+                                    <button onClick={() => setIsNoticeModalOpen(false)} className="text-slate-400 hover:text-slate-600"><span className="material-symbols-outlined">close</span></button>
+                                </div>
+                                <div className="p-6">
+                                    <textarea 
+                                        className="w-full h-40 bg-slate-50 dark:bg-slate-900 border-none rounded-xl p-4 text-sm focus:ring-2 focus:ring-primary/50 resize-none"
+                                        placeholder="请输入群公告内容..."
+                                        value={tempNotice}
+                                        onChange={(e) => setTempNotice(e.target.value)}
+                                    ></textarea>
+                                    <div className="mt-6 flex gap-3">
+                                        <button 
+                                            onClick={() => setIsNoticeModalOpen(false)}
+                                            className="flex-1 py-3 rounded-xl bg-slate-100 dark:bg-slate-700 font-semibold text-sm"
+                                        >
+                                            取消
+                                        </button>
+                                        <button 
+                                            onClick={handleSaveNotice}
+                                            className="flex-1 py-3 rounded-xl bg-primary text-white font-semibold text-sm shadow-lg shadow-primary/20"
+                                        >
+                                            保存并发布
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const UserProfileScreen = () => {
+            const navigate = useNavigate();
+            const location = useLocation();
+            const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+            const userName = location.pathname.split('/').pop() || '用户';
+            const displayUserName = userName === 'sarah' ? 'Sarah Jenkins' : userName === 'lin' ? '林嘉豪' : '张三';
+
+            const handleDeleteConfirm = () => {
+                setIsConfirmOpen(false);
+                // Logic to delete friend would go here
+                navigate('/contacts');
+            };
+            
+            return (
+                <div class="min-h-screen w-full bg-background-light dark:bg-background-dark">
+                    <nav class="flex items-center bg-white dark:bg-slate-800 p-4 sticky top-0 z-10 border-b border-slate-200 dark:border-slate-800">
+                        <button onClick={() => navigate(-1)} class="flex size-10 items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"><span class="material-symbols-outlined">arrow_back</span></button>
+                        <h1 class="text-lg font-bold flex-1 text-center">用户详情</h1>
+                        <div class="size-10 flex items-center justify-center"><span class="material-symbols-outlined">more_horiz</span></div>
+                    </nav>
+                    <div class="flex p-6 bg-white dark:bg-slate-900/40 mb-2">
+                        <div class="flex gap-5 items-center">
+                            <div class="bg-slate-200 size-24 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700" style={{backgroundImage: userName === 'sarah' ? 'url("https://lh3.googleusercontent.com/aida-public/AB6AXuBJAJQynqU1eG_6xnK7VppJdkw_yjIcY-7k-OagvyRF6tbm9OPTjpsNORZHXcG8JVnIfsamIjExjGTJCsme3yHCxjPl9yxzGL622SUXREZUGmF0-yWlmhoFsk4QVKR-oCVYh3kzmZk0rHVCn3Vz742AGmHJCx4Kjxw0blYZjtQngtz_nFCQuSeftm5iIYE5WRMkkXTGdHKNuJZtgmAY6jvy2V7wA1rMfzhkKEdICDIHs4bGR2oLiiiaiN-xa_dx2jcfTcrRJzKJFhIY")' : '', backgroundSize: 'cover'}}></div>
+                            <div>
+                                <p class="text-2xl font-bold">{displayUserName}</p>
+                                <p class="text-primary/80 text-sm">账号: user_id_001</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-3 p-6">
+                        <button onClick={() => navigate('/chat/sarah')} class="flex w-full items-center justify-center rounded-xl h-12 bg-primary text-white font-bold shadow-md shadow-primary/20"><span class="material-symbols-outlined mr-2">chat</span>发消息</button>
+                        <button onClick={() => setIsConfirmOpen(true)} class="flex w-full items-center justify-center rounded-xl h-12 bg-danger/10 text-danger font-bold hover:bg-danger/20 transition-colors"><span class="material-symbols-outlined mr-2">person_remove</span>删除好友</button>
+                    </div>
+
+                    <ConfirmationModal 
+                        isOpen={isConfirmOpen}
+                        title="确认删除"
+                        message={`确定要将好友 "${displayUserName}" 删除吗？`}
+                        onConfirm={handleDeleteConfirm}
+                        onCancel={() => setIsConfirmOpen(false)}
+                    />
+                </div>
+            );
+        };
+
+        const App = () => {
+            return (
+                <MemoryRouter>
+                    <div class="max-w-md mx-auto min-h-screen bg-background-light dark:bg-background-dark relative shadow-xl overflow-x-hidden">
+                        <Routes>
+                            <Route path="/" element={<ChatsScreen />} />
+                            <Route path="/contacts" element={<ContactsScreen />} />
+                            <Route path="/profile" element={<PersonalCenterScreen />} />
+                            <Route path="/chat/sarah" element={<ChatDetailScreen />} />
+                            <Route path="/chat/design" element={<GroupChatDetailScreen />} />
+                            <Route path="/chat-settings" element={<ChatSettingsScreen />} />
+                            <Route path="/group-settings" element={<GroupSettingsScreen />} />
+                            <Route path="/add-friend" element={<AddFriendScreen />} />
+                            <Route path="/send-request" element={<SendFriendRequestScreen />} />
+                            <Route path="/search-group" element={<SearchGroupScreen />} />
+                            <Route path="/create-group" element={<CreateGroupScreen />} />
+                            <Route path="/user/:id" element={<UserProfileScreen />} />
+                        </Routes>
+                    </div>
+                </MemoryRouter>
+            );
+        };
+
+        const rootElement = document.getElementById('root');
+        const root = createRoot(rootElement);
+        root.render(<App />);
+    </script>
+</body>
+</html>

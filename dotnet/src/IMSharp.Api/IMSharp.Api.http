@@ -1,0 +1,20 @@
+POST {{ApiBaseUrl}}/api/Auth/login
+Content-Type: application/json
+
+{
+  "oAuthAccessToken": "{{OAuthAccessToken}}"
+}
+
+> {%
+    if (response.status === 200) {
+        client.global.set("AccessToken", response.body.accessToken);
+    }
+%}
+
+###
+
+GET {{ApiBaseUrl}}/api/Auth/me
+Authorization: Bearer {{AccessToken}}
+Content-Type: application/json
+
+###
