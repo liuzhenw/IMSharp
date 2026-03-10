@@ -29,10 +29,8 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         foreach (var entry in entries)
         {
-            if (entry.Entity is Domain.Common.BaseEntity entity)
-            {
+            if (entry.Entity is Domain.Common.BaseEntity entity) 
                 entity.UpdatedAt = DateTimeOffset.UtcNow;
-            }
         }
 
         return base.SaveChangesAsync(cancellationToken);
