@@ -29,6 +29,9 @@ export const useChatStore = defineStore('chat', () => {
   const currentUserId = ref<string | null>(null)
   const currentChatId = ref<string | null>(null) // 当前正在查看的聊天 ID
 
+  // 已读位置管理 - 保存每个会话最后一条已读消息的 ID
+  const lastReadMessageIds = ref<Map<string, string>>(new Map())
+
   // 游标状态管理
   const privateCursors = ref<Map<string, {
     nextCursor: string | null  // 用于加载更早的历史消息
@@ -132,7 +135,37 @@ export const useChatStore = defineStore('chat', () => {
     options?: { limit?: number }
   ) {
     try {
-      // 1. 先从 IndexedDB 加载缓存消息（快速显示）
+      // 1. 获取最后已读消息 ID
+      const lastReadMessageId = lastReadMessageIds.value.get(friendId)
+
+      // 2. 如果有最后已读位置，只加载该位置之后的新消息
+      if (lastReadMessageId) {
+        const response = await messagesApi.getConversation(friendId, {
+          after: lastReadMessageId,
+          limit: options?.limit || 50,
+        })
+
+        // 如果有新消息，更新消息列表
+        if (response.messages.length > 0) {
+          const existing = privateMessages.value.get(friendId) || []
+          const merged = mergeMessages(existing, response.messages)
+          privateMessages.value.set(friendId, merged)
+
+          // 更新游标状态
+          privateCursors.value.set(friendId, {
+            nextCursor: response.nextCursor,
+            prevCursor: response.prevCursor,
+            hasMore: response.hasMore,
+          })
+
+          // 保存到 IndexedDB
+          await messageStorage.savePrivateMessages(response.messages)
+        }
+
+        return response
+      }
+
+      // 3. 首次加载：先从 IndexedDB 加载缓存消息（快速显示）
       if (currentUserId.value) {
         const cachedMessages = await messageStorage.getPrivateMessages(
           friendId,
@@ -143,24 +176,30 @@ export const useChatStore = defineStore('chat', () => {
         }
       }
 
-      // 2. 从 API 加载最新消息（不提供 before/after）
+      // 4. 从 API 加载最新消息（不提供 before/after）
       const response = await messagesApi.getConversation(friendId, {
         limit: options?.limit || 50,
       })
 
-      // 3. 更新消息列表（覆盖缓存）
+      // 5. 更新消息列表（覆盖缓存）
       privateMessages.value.set(friendId, response.messages)
 
-      // 4. 更新游标状态
+      // 6. 更新游标状态
       privateCursors.value.set(friendId, {
         nextCursor: response.nextCursor,
         prevCursor: response.prevCursor,
         hasMore: response.hasMore,
       })
 
-      // 5. 保存到 IndexedDB
+      // 7. 保存到 IndexedDB
       if (response.messages.length > 0) {
         await messageStorage.savePrivateMessages(response.messages)
+
+        // 8. 保存最后一条消息的 ID 作为已读位置
+        const lastMessage = response.messages[response.messages.length - 1]
+        if (lastMessage) {
+          lastReadMessageIds.value.set(friendId, lastMessage.id)
+        }
       }
 
       return response
@@ -257,30 +296,66 @@ export const useChatStore = defineStore('chat', () => {
     options?: { limit?: number }
   ) {
     try {
-      // 1. 先从 IndexedDB 加载缓存消息（快速显示）
+      // 1. 获取最后已读消息 ID
+      const lastReadMessageId = lastReadMessageIds.value.get(groupId)
+
+      // 2. 如果有最后已读位置，只加载该位置之后的新消息
+      if (lastReadMessageId) {
+        const response = await groupsApi.getMessages(groupId, {
+          after: lastReadMessageId,
+          limit: options?.limit || 50,
+        })
+
+        // 如果有新消息，更新消息列表
+        if (response.messages.length > 0) {
+          const existing = groupMessages.value.get(groupId) || []
+          const merged = mergeMessages(existing, response.messages)
+          groupMessages.value.set(groupId, merged)
+
+          // 更新游标状态
+          groupCursors.value.set(groupId, {
+            nextCursor: response.nextCursor,
+            prevCursor: response.prevCursor,
+            hasMore: response.hasMore,
+          })
+
+          // 保存到 IndexedDB
+          await messageStorage.saveGroupMessages(response.messages)
+        }
+
+        return response
+      }
+
+      // 3. 首次加载：先从 IndexedDB 加载缓存消息（快速显示）
       const cachedMessages = await messageStorage.getGroupMessages(groupId)
       if (cachedMessages.length > 0) {
         groupMessages.value.set(groupId, cachedMessages)
       }
 
-      // 2. 从 API 加载最新消息（不提供 before/after）
+      // 4. 从 API 加载最新消息（不提供 before/after）
       const response = await groupsApi.getMessages(groupId, {
         limit: options?.limit || 50,
       })
 
-      // 3. 更新消息列表（覆盖缓存）
+      // 5. 更新消息列表（覆盖缓存）
       groupMessages.value.set(groupId, response.messages)
 
-      // 4. 更新游标状态
+      // 6. 更新游标状态
       groupCursors.value.set(groupId, {
         nextCursor: response.nextCursor,
         prevCursor: response.prevCursor,
         hasMore: response.hasMore,
       })
 
-      // 5. 保存到 IndexedDB
+      // 7. 保存到 IndexedDB
       if (response.messages.length > 0) {
         await messageStorage.saveGroupMessages(response.messages)
+
+        // 8. 保存最后一条消息的 ID 作为已读位置
+        const lastMessage = response.messages[response.messages.length - 1]
+        if (lastMessage) {
+          lastReadMessageIds.value.set(groupId, lastMessage.id)
+        }
       }
 
       return response
@@ -424,6 +499,9 @@ export const useChatStore = defineStore('chat', () => {
       messages.push(message)
     }
 
+    // 更新已读位置（保存最新消息的 ID）
+    lastReadMessageIds.value.set(conversationId, message.id)
+
     // 保存到 IndexedDB (异步,不阻塞 UI)
     messageStorage.savePrivateMessage(message).catch(err => {
       console.error('保存消息到 IndexedDB 失败:', err)
@@ -448,6 +526,9 @@ export const useChatStore = defineStore('chat', () => {
     if (messages) {
       messages.push(message)
     }
+
+    // 更新已读位置（保存最新消息的 ID）
+    lastReadMessageIds.value.set(message.groupId, message.id)
 
     // 保存到 IndexedDB (异步,不阻塞 UI)
     messageStorage.saveGroupMessage(message).catch(err => {
@@ -577,6 +658,30 @@ export const useChatStore = defineStore('chat', () => {
   // ==================== IndexedDB 同步和清理 ====================
 
   /**
+   * 清空特定会话的消息（保留已读位置）
+   * @param chatId 会话 ID（好友 ID 或群组 ID）
+   * @param type 会话类型
+   */
+  async function clearConversationMessages(chatId: string, type: 'private' | 'group') {
+    try {
+      // 清空内存中的消息
+      if (type === 'private') {
+        privateMessages.value.delete(chatId)
+      } else {
+        groupMessages.value.delete(chatId)
+      }
+
+      // 清空 IndexedDB 中的消息（需要实现 messageStorage 的对应方法）
+      // 注意：保留 lastReadMessageIds，这样下次进入时只会加载新消息
+
+      console.log(`已清空 ${type === 'private' ? '私聊' : '群聊'} ${chatId} 的消息`)
+    } catch (error) {
+      console.error('清空会话消息失败:', error)
+      throw error
+    }
+  }
+
+  /**
    * 从 IndexedDB 同步消息到内存
    * 应用启动时调用,恢复上次的消息
    */
@@ -604,6 +709,7 @@ export const useChatStore = defineStore('chat', () => {
       conversations.value = []
       unreadCounts.value.clear()
       typingUsers.value.clear()
+      lastReadMessageIds.value.clear()
     } catch (error) {
       console.error('清除缓存失败:', error)
       throw error
@@ -666,6 +772,7 @@ export const useChatStore = defineStore('chat', () => {
     setupSignalRListeners,
     setCurrentUserId,
     setCurrentChatId,
+    clearConversationMessages,
     syncMessagesFromDB,
     clearLocalCache,
     cleanupOldMessages,
