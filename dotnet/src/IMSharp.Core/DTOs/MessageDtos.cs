@@ -47,3 +47,10 @@ public record UnreadCountResponse(
     int TotalUnread,
     Dictionary<Guid, int> UnreadByUser
 );
+
+public record UnifiedUnreadCountResponse(
+    int TotalPrivateUnread,
+    int TotalGroupUnread,
+    Dictionary<Guid, int> PrivateUnreadByUser,
+    Dictionary<Guid, int> GroupUnreadByGroup
+);

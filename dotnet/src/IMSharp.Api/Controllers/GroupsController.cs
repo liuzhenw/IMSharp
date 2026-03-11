@@ -76,26 +76,6 @@ public class GroupsController(IGroupService groupService, INotificationService n
         return NoContent();
     }
 
-    [HttpGet("{id}/messages")]
-    public async Task<ActionResult<GroupMessagesResponse>> GetMessages(
-        Guid id,
-        [FromQuery] int limit = 50,
-        [FromQuery] DateTimeOffset? before = null,
-        CancellationToken cancellationToken = default)
-    {
-        var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-        var response = await groupService.GetMessagesAsync(userId, id, limit, before, cancellationToken);
-        return Ok(response);
-    }
-
-    [HttpPost("{id}/messages")]
-    public async Task<ActionResult<GroupMessageDto>> SendMessage(Guid id, [FromBody] SendGroupMessageRequest request, CancellationToken cancellationToken)
-    {
-        var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-        var message = await groupService.SendMessageAsync(userId, id, request, cancellationToken);
-        return Ok(message);
-    }
-
     [HttpPost("{id}/leave")]
     public async Task<IActionResult> LeaveGroup(Guid id, CancellationToken cancellationToken)
     {
