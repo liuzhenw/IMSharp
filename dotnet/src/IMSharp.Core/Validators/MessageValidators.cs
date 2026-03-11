@@ -24,19 +24,17 @@ public class SendMessageValidator : AbstractValidator<SendPrivateMessageRequest>
     }
 }
 
-public class GetConversationValidator : AbstractValidator<GetConversationRequest>
+public class CursorPaginationRequestValidator : AbstractValidator<CursorPaginationRequest>
 {
-    public GetConversationValidator()
+    public CursorPaginationRequestValidator()
     {
-        RuleFor(x => x.PageNumber)
-            .GreaterThan(0)
-            .WithMessage("Page number must be greater than 0");
+        RuleFor(x => x.Limit)
+            .InclusiveBetween(1, 100)
+            .WithMessage("Limit must be between 1 and 100");
 
-        RuleFor(x => x.PageSize)
-            .GreaterThan(0)
-            .WithMessage("Page size must be greater than 0")
-            .LessThanOrEqualTo(100)
-            .WithMessage("Page size must not exceed 100");
+        RuleFor(x => x)
+            .Must(x => !(x.Before.HasValue && x.After.HasValue))
+            .WithMessage("Cannot specify both 'before' and 'after' parameters");
     }
 }
 

@@ -52,5 +52,9 @@ public class GroupMessageConfiguration : IEntityTypeConfiguration<GroupMessage>
         builder.HasIndex(gm => gm.SenderId);
         builder.HasIndex(gm => gm.CreatedAt);
         builder.HasIndex(gm => new { gm.GroupId, gm.CreatedAt });
+
+        // Index for cursor-based pagination
+        builder.HasIndex(gm => new { gm.GroupId, gm.Id })
+            .HasDatabaseName("idx_group_message_group_id");
     }
 }

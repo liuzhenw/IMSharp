@@ -20,23 +20,48 @@ public class PrivateMessageRepository(ApplicationDbContext context) : IPrivateMe
             .FirstOrDefaultAsync(m => m.Id == id, cancellationToken);
     }
 
-    public async Task<(List<PrivateMessage> Messages, int TotalCount)> GetConversationAsync(
-        Guid userId, Guid friendId, int pageNumber, int pageSize, CancellationToken cancellationToken = default)
+    public async Task<List<PrivateMessage>> GetConversationWithCursorAsync(
+        Guid userId, Guid friendId, Guid? before, Guid? after, int limit, CancellationToken cancellationToken = default)
     {
-        var query = context.PrivateMessages
+        var baseQuery = context.PrivateMessages
             .Include(m => m.Sender)
             .Include(m => m.Receiver)
             .Where(m => (m.SenderId == userId && m.ReceiverId == friendId) ||
-                        (m.SenderId == friendId && m.ReceiverId == userId))
-            .OrderByDescending(m => m.CreatedAt);
+                        (m.SenderId == friendId && m.ReceiverId == userId));
 
-        var totalCount = await query.CountAsync(cancellationToken);
-        var messages = await query
-            .Skip((pageNumber - 1) * pageSize)
-            .Take(pageSize)
-            .ToListAsync(cancellationToken);
+        List<PrivateMessage> messages;
 
-        return (messages, totalCount);
+        if (after.HasValue)
+        {
+            // 向后加载新消息：获取 ID 大于 after 的消息
+            messages = await baseQuery
+                .Where(m => m.Id.CompareTo(after.Value) > 0)
+                .OrderBy(m => m.Id)
+                .Take(limit + 1)
+                .ToListAsync(cancellationToken);
+
+            // 反转为倒序（最新在前）
+            messages.Reverse();
+        }
+        else if (before.HasValue)
+        {
+            // 向前加载历史：获取 ID 小于 before 的消息
+            messages = await baseQuery
+                .Where(m => m.Id.CompareTo(before.Value) < 0)
+                .OrderByDescending(m => m.Id)
+                .Take(limit + 1)
+                .ToListAsync(cancellationToken);
+        }
+        else
+        {
+            // 首次加载：获取最新的消息
+            messages = await baseQuery
+                .OrderByDescending(m => m.Id)
+                .Take(limit + 1)
+                .ToListAsync(cancellationToken);
+        }
+
+        return messages;
     }
 
     public async Task<int> GetUnreadCountAsync(Guid userId, CancellationToken cancellationToken = default)

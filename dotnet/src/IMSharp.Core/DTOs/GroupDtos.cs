@@ -85,6 +85,4 @@ public record SearchGroupResponse(
     bool IsMember
 );
 
-public record GroupMessagesResponse(List<GroupMessageDto> Messages);
-
 public record GroupJoinRequestListResponse(List<GroupJoinRequestDto> Requests);

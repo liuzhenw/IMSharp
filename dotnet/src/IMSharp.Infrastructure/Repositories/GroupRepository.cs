@@ -43,23 +43,48 @@ public class GroupRepository(ApplicationDbContext context) : IGroupRepository
             .ToListAsync(cancellationToken);
     }
 
-    public async Task<IEnumerable<GroupMessage>> GetMessagesAsync(Guid groupId, int limit = 50, DateTimeOffset? before = null, CancellationToken cancellationToken = default)
+    public async Task<List<GroupMessage>> GetMessagesWithCursorAsync(
+        Guid groupId, Guid? before, Guid? after, int limit, CancellationToken cancellationToken = default)
     {
-        var query = context.GroupMessages
+        var baseQuery = context.GroupMessages
             .Include(gm => gm.Sender)
             .Include(gm => gm.ReplyTo)
                 .ThenInclude(rm => rm!.Sender)
             .Where(gm => gm.GroupId == groupId);
 
-        if (before.HasValue)
+        List<GroupMessage> messages;
+
+        if (after.HasValue)
         {
-            query = query.Where(gm => gm.CreatedAt < before.Value);
+            // 向后加载新消息：获取 ID 大于 after 的消息
+            messages = await baseQuery
+                .Where(gm => gm.Id.CompareTo(after.Value) > 0)
+                .OrderBy(gm => gm.Id)
+                .Take(limit + 1)
+                .ToListAsync(cancellationToken);
+
+            // 反转为倒序（最新在前）
+            messages.Reverse();
+        }
+        else if (before.HasValue)
+        {
+            // 向前加载历史：获取 ID 小于 before 的消息
+            messages = await baseQuery
+                .Where(gm => gm.Id.CompareTo(before.Value) < 0)
+                .OrderByDescending(gm => gm.Id)
+                .Take(limit + 1)
+                .ToListAsync(cancellationToken);
+        }
+        else
+        {
+            // 首次加载：获取最新的消息
+            messages = await baseQuery
+                .OrderByDescending(gm => gm.Id)
+                .Take(limit + 1)
+                .ToListAsync(cancellationToken);
         }
 
-        return await query
-            .OrderByDescending(gm => gm.CreatedAt)
-            .Take(limit)
-            .ToListAsync(cancellationToken);
+        return messages;
     }
 
     public async Task<bool> IsMemberAsync(Guid groupId, Guid userId, CancellationToken cancellationToken = default)

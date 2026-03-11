@@ -270,7 +270,8 @@ public class GroupService(
         await groupRepository.UpdateMemberAsync(targetMember, cancellationToken);
     }
 
-    public async Task<GroupMessagesResponse> GetMessagesAsync(Guid userId, Guid groupId, int limit = 50, DateTimeOffset? before = null, CancellationToken cancellationToken = default)
+    public async Task<GroupMessagePageResponse> GetMessagesWithCursorAsync(
+        Guid userId, Guid groupId, CursorPaginationRequest request, CancellationToken cancellationToken = default)
     {
         // 验证用户是否为群成员
         var isMember = await groupRepository.IsMemberAsync(groupId, userId, cancellationToken);
@@ -279,9 +280,52 @@ public class GroupService(
             throw new UnauthorizedException("您不是该群组的成员");
         }
 
-        var messages = await groupRepository.GetMessagesAsync(groupId, limit, before, cancellationToken);
-        var messageDtos = _groupMapper.ToMessageDtoList(messages.ToList());
-        return new GroupMessagesResponse(messageDtos);
+        // 获取消息（多取一条用于判断 hasMore）
+        var messages = await groupRepository.GetMessagesWithCursorAsync(
+            groupId, request.Before, request.After, request.Limit, cancellationToken);
+
+        // 判断是否有更多消息
+        var hasMore = messages.Count > request.Limit;
+        if (hasMore)
+        {
+            messages.RemoveAt(messages.Count - 1);
+        }
+
+        // 映射为 DTO
+        var messageDtos = _groupMapper.ToMessageDtoList(messages);
+
+        // 计算游标
+        Guid? nextCursor = null;
+        Guid? prevCursor = null;
+
+        if (messages.Count > 0)
+        {
+            if (request.After.HasValue)
+            {
+                // 向后加载场景：只有 prevCursor
+                prevCursor = messages[^1].Id;
+            }
+            else
+            {
+                // 首次加载或向前加载场景
+                if (hasMore)
+                {
+                    nextCursor = messages[^1].Id;
+                }
+
+                if (request.Before.HasValue)
+                {
+                    prevCursor = messages[0].Id;
+                }
+            }
+        }
+
+        return new GroupMessagePageResponse(
+            messageDtos,
+            hasMore,
+            nextCursor,
+            prevCursor
+        );
     }
 
     public async Task<GroupMessageDto> SendMessageAsync(Guid userId, Guid groupId, SendGroupMessageRequest request, CancellationToken cancellationToken = default)

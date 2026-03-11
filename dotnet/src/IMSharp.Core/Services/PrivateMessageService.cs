@@ -43,25 +43,58 @@ public class PrivateMessageService(
         return _mapper.ToDto(savedMessage!);
     }
 
-    public async Task<ConversationResponse> GetConversationAsync(
-        Guid userId, Guid friendId, GetConversationRequest request, CancellationToken cancellationToken = default)
+    public async Task<PrivateMessagePageResponse> GetConversationWithCursorAsync(
+        Guid userId, Guid friendId, CursorPaginationRequest request, CancellationToken cancellationToken = default)
     {
         // 验证是好友关系
         if (!await friendRepository.AreFriendsAsync(userId, friendId, cancellationToken))
             throw new BusinessException("Can only view conversations with friends");
 
-        var (messages, totalCount) = await messageRepository.GetConversationAsync(
-            userId, friendId, request.PageNumber, request.PageSize, cancellationToken);
+        // 获取消息（多取一条用于判断 hasMore）
+        var messages = await messageRepository.GetConversationWithCursorAsync(
+            userId, friendId, request.Before, request.After, request.Limit, cancellationToken);
 
+        // 判断是否有更多消息
+        var hasMore = messages.Count > request.Limit;
+        if (hasMore)
+        {
+            messages.RemoveAt(messages.Count - 1);
+        }
+
+        // 映射为 DTO
         var messageDtos = _mapper.ToDtoList(messages);
-        var totalPages = (int)Math.Ceiling(totalCount / (double)request.PageSize);
 
-        return new ConversationResponse(
+        // 计算游标
+        Guid? nextCursor = null;
+        Guid? prevCursor = null;
+
+        if (messages.Count > 0)
+        {
+            if (request.After.HasValue)
+            {
+                // 向后加载场景：只有 prevCursor
+                prevCursor = messages[^1].Id;
+            }
+            else
+            {
+                // 首次加载或向前加载场景
+                if (hasMore)
+                {
+                    nextCursor = messages[^1].Id;
+                }
+
+                if (request.Before.HasValue)
+                {
+                    prevCursor = messages[0].Id;
+                }
+            }
+        }
+
+        return new PrivateMessagePageResponse(
             messageDtos,
-            totalCount,
-            request.PageNumber,
-            request.PageSize,
-            totalPages
+            hasMore,
+            nextCursor,
+            prevCursor
         );
     }
 

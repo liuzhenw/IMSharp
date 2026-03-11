@@ -31,14 +31,25 @@ export const useChatStore = defineStore('chat', () => {
 
   // 已读位置管理 - 保存每个会话最后一条已读消息的 ID
   const lastReadMessageIds = ref<Map<string, string>>(new Map())
+  const lastReadPositionsLoaded = ref(false)
 
   // 从 IndexedDB 加载所有已读位置
   async function loadLastReadPositions() {
+    if (lastReadPositionsLoaded.value) return
+
     try {
       const positions = await messageStorage.getAllLastReadPositions()
       lastReadMessageIds.value = positions
+      lastReadPositionsLoaded.value = true
     } catch (error) {
       console.error('加载已读位置失败:', error)
+    }
+  }
+
+  // 确保已读位置已加载
+  async function ensureLastReadPositionsLoaded() {
+    if (!lastReadPositionsLoaded.value) {
+      await loadLastReadPositions()
     }
   }
 
@@ -155,6 +166,9 @@ export const useChatStore = defineStore('chat', () => {
     options?: { limit?: number }
   ) {
     try {
+      // 0. 确保已读位置已加载
+      await ensureLastReadPositionsLoaded()
+
       // 1. 获取最后已读消息 ID
       const lastReadMessageId = lastReadMessageIds.value.get(friendId)
 
@@ -316,6 +330,9 @@ export const useChatStore = defineStore('chat', () => {
     options?: { limit?: number }
   ) {
     try {
+      // 0. 确保已读位置已加载
+      await ensureLastReadPositionsLoaded()
+
       // 1. 获取最后已读消息 ID
       const lastReadMessageId = lastReadMessageIds.value.get(groupId)
 

@@ -458,7 +458,7 @@ await fetch(`http://localhost:5185/api/friends/${friendId}`, {
 
 ### 3.5 私聊消息相关
 
-#### 3.5.1 获取会话消息
+#### 3.5.1 获取会话消息（游标分页）
 
 **端点**: `GET /api/messages/private/conversations/{friendId}`
 **需要认证**: ✅
@@ -467,8 +467,15 @@ await fetch(`http://localhost:5185/api/friends/${friendId}`, {
 - `friendId` (Guid): 好友用户 ID
 
 **查询参数**:
-- `pageNumber` (int, 可选, 默认: 1): 页码
-- `pageSize` (int, 可选, 默认: 50): 每页数量
+- `before` (Guid, 可选): 获取此消息 ID 之前的消息（向前翻页，加载历史）
+- `after` (Guid, 可选): 获取此消息 ID 之后的消息（向后翻页，加载新消息）
+- `limit` (int, 可选, 默认: 50, 范围: 1-100): 每页数量
+
+**参数说明**:
+- `before` 和 `after` 互斥，不能同时提供
+- 首次加载时不提供 `before` 和 `after`，返回最新的消息
+- 使用 `before` 向前翻页加载更早的历史消息
+- 使用 `after` 向后翻页加载更新的消息
 
 **响应**:
 ```json
@@ -488,20 +495,42 @@ await fetch(`http://localhost:5185/api/friends/${friendId}`, {
       "receiver": { /* UserDto */ }
     }
   ],
-  "totalCount": 100,
-  "pageNumber": 1,
-  "pageSize": 50,
-  "totalPages": 2
+  "hasMore": true,
+  "nextCursor": "next_message_id",
+  "prevCursor": "prev_message_id"
 }
 ```
 
+**响应字段说明**:
+- `messages`: 消息列表（按时间倒序，最新的在前）
+- `hasMore`: 是否还有更多消息
+- `nextCursor`: 用于 `?before={nextCursor}` 获取更早的消息
+- `prevCursor`: 用于 `?after={prevCursor}` 获取更新的消息
+
 **示例**:
 ```javascript
+// 首次加载最新消息
 const response = await fetch(
-  `http://localhost:5185/api/messages/private/conversations/${friendId}?pageNumber=1&pageSize=50`,
+  `http://localhost:5185/api/messages/private/conversations/${friendId}?limit=50`,
   { headers: { 'Authorization': 'Bearer your_jwt_token' } }
 );
-const conversation = await response.json();
+const { messages, hasMore, nextCursor, prevCursor } = await response.json();
+
+// 向前翻页加载更早的历史消息
+if (hasMore && nextCursor) {
+  const olderResponse = await fetch(
+    `http://localhost:5185/api/messages/private/conversations/${friendId}?before=${nextCursor}&limit=50`,
+    { headers: { 'Authorization': 'Bearer your_jwt_token' } }
+  );
+}
+
+// 向后翻页加载更新的消息
+if (prevCursor) {
+  const newerResponse = await fetch(
+    `http://localhost:5185/api/messages/private/conversations/${friendId}?after=${prevCursor}&limit=50`,
+    { headers: { 'Authorization': 'Bearer your_jwt_token' } }
+  );
+}
 ```
 
 #### 3.5.2 发送私聊消息 (HTTP API)
@@ -805,7 +834,7 @@ const group = await response.json();
 
 **响应**: `204 No Content`
 
-#### 3.6.9 获取群聊消息
+#### 3.6.9 获取群聊消息（游标分页）
 
 **端点**: `GET /api/messages/group/{groupId}`
 **需要认证**: ✅
@@ -814,8 +843,15 @@ const group = await response.json();
 - `groupId` (Guid): 群组 ID
 
 **查询参数**:
-- `limit` (int, 可选, 默认: 50): 消息数量
-- `before` (DateTimeOffset, 可选): 获取此时间之前的消息
+- `before` (Guid, 可选): 获取此消息 ID 之前的消息（向前翻页，加载历史）
+- `after` (Guid, 可选): 获取此消息 ID 之后的消息（向后翻页，加载新消息）
+- `limit` (int, 可选, 默认: 50, 范围: 1-100): 每页数量
+
+**参数说明**:
+- `before` 和 `after` 互斥，不能同时提供
+- 首次加载时不提供 `before` 和 `after`，返回最新的消息
+- 使用 `before` 向前翻页加载更早的历史消息
+- 使用 `after` 向后翻页加载更新的消息
 
 **响应**:
 ```json
@@ -830,7 +866,42 @@ const group = await response.json();
       "replyTo": null,
       "createdAt": "2026-03-10T10:00:00Z"
     }
-  ]
+  ],
+  "hasMore": true,
+  "nextCursor": "next_message_id",
+  "prevCursor": "prev_message_id"
+}
+```
+
+**响应字段说明**:
+- `messages`: 消息列表（按时间倒序，最新的在前）
+- `hasMore`: 是否还有更多消息
+- `nextCursor`: 用于 `?before={nextCursor}` 获取更早的消息
+- `prevCursor`: 用于 `?after={prevCursor}` 获取更新的消息
+
+**示例**:
+```javascript
+// 首次加载最新消息
+const response = await fetch(
+  `http://localhost:5185/api/messages/group/${groupId}?limit=50`,
+  { headers: { 'Authorization': 'Bearer your_jwt_token' } }
+);
+const { messages, hasMore, nextCursor, prevCursor } = await response.json();
+
+// 向前翻页加载更早的历史消息
+if (hasMore && nextCursor) {
+  const olderResponse = await fetch(
+    `http://localhost:5185/api/messages/group/${groupId}?before=${nextCursor}&limit=50`,
+    { headers: { 'Authorization': 'Bearer your_jwt_token' } }
+  );
+}
+
+// 向后翻页加载更新的消息
+if (prevCursor) {
+  const newerResponse = await fetch(
+    `http://localhost:5185/api/messages/group/${groupId}?after=${prevCursor}&limit=50`,
+    { headers: { 'Authorization': 'Bearer your_jwt_token' } }
+  );
 }
 ```
 
@@ -1703,14 +1774,23 @@ await connection.stop();
 
 ### 5.5 响应包装
 
-#### 分页响应 (ConversationResponse)
+#### 游标分页响应 (PrivateMessagePageResponse)
 ```typescript
 {
   messages: PrivateMessageDto[],
-  totalCount: number,
-  pageNumber: number,
-  pageSize: number,
-  totalPages: number
+  hasMore: boolean,
+  nextCursor: string | null,  // 用于 ?before={nextCursor} 获取更早的消息
+  prevCursor: string | null   // 用于 ?after={prevCursor} 获取更新的消息
+}
+```
+
+#### 游标分页响应 (GroupMessagePageResponse)
+```typescript
+{
+  messages: GroupMessageDto[],
+  hasMore: boolean,
+  nextCursor: string | null,  // 用于 ?before={nextCursor} 获取更早的消息
+  prevCursor: string | null   // 用于 ?after={prevCursor} 获取更新的消息
 }
 ```
 
@@ -2183,6 +2263,80 @@ async function fetchWithAuth(url, options = {}) {
 
 ## 9. 版本历史
 
+### v1.2.0 (2026-03-11)
+
+**消息分页重构 - 破坏性变更**
+
+将私聊和群聊消息的分页方式从传统的页码分页统一替换为基于消息 ID 的游标分页。
+
+**API 变更**:
+
+私聊消息:
+- `GET /api/messages/private/conversations/{friendId}` 查询参数变更:
+  - 移除: `pageNumber`, `pageSize`
+  - 新增: `before` (Guid), `after` (Guid), `limit` (int, 1-100)
+- 响应格式变更:
+  - 移除: `totalCount`, `pageNumber`, `pageSize`, `totalPages`
+  - 新增: `hasMore` (bool), `nextCursor` (Guid?), `prevCursor` (Guid?)
+
+群聊消息:
+- `GET /api/messages/group/{groupId}` 查询参数变更:
+  - `before` 类型从 `DateTimeOffset` 改为 `Guid`
+  - 新增: `after` (Guid)
+  - `limit` 范围限制为 1-100
+- 响应格式变更:
+  - 从 `GroupMessagesResponse` 改为 `GroupMessagePageResponse`
+  - 新增: `hasMore` (bool), `nextCursor` (Guid?), `prevCursor` (Guid?)
+
+**设计优势**:
+- ✅ 一致性 - 私聊和群聊使用统一的游标分页方式
+- ✅ 性能优化 - 利用 `Guid.CreateVersion7()` 的时间排序特性，避免 COUNT 查询
+- ✅ 双向加载 - 支持向前加载历史和向后加载新消息
+- ✅ 实时友好 - 更适合实时消息场景，无需重新计算页码
+
+**数据库优化**:
+- 新增索引: `idx_private_message_conversation_id (SenderId, ReceiverId, Id)`
+- 新增索引: `idx_group_message_group_id (GroupId, Id)`
+
+**迁移指南**:
+
+旧代码（页码分页）:
+```javascript
+// 首次加载
+const response = await fetch(
+  `/api/messages/private/conversations/${friendId}?pageNumber=1&pageSize=50`
+);
+const { messages, totalPages } = await response.json();
+
+// 加载下一页
+const nextResponse = await fetch(
+  `/api/messages/private/conversations/${friendId}?pageNumber=2&pageSize=50`
+);
+```
+
+新代码（游标分页）:
+```javascript
+// 首次加载
+const response = await fetch(
+  `/api/messages/private/conversations/${friendId}?limit=50`
+);
+const { messages, hasMore, nextCursor } = await response.json();
+
+// 加载更早的消息
+if (hasMore && nextCursor) {
+  const olderResponse = await fetch(
+    `/api/messages/private/conversations/${friendId}?before=${nextCursor}&limit=50`
+  );
+}
+
+// 加载更新的消息
+if (prevCursor) {
+  const newerResponse = await fetch(
+    `/api/messages/private/conversations/${friendId}?after=${prevCursor}&limit=50`
+  );
+}
+```
+
 ### v1.1.0 (2026-03-11)
 
 **API 重构 - 破坏性变更**
@@ -2245,5 +2399,5 @@ async function fetchWithAuth(url, options = {}) {
 ---
 
 **文档生成时间**: 2026-03-11
-**API 版本**: v1.1.0
-**文档版本**: v1.1.0
+**API 版本**: v1.2.0
+**文档版本**: v1.2.0

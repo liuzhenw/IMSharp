@@ -38,6 +38,10 @@ public class PrivateMessageConfiguration : IEntityTypeConfiguration<PrivateMessa
         builder.HasIndex(m => new { m.ReceiverId, m.Status })
             .HasDatabaseName("idx_private_message_receiver_status");
 
+        // Index for cursor-based pagination
+        builder.HasIndex(m => new { m.SenderId, m.ReceiverId, m.Id })
+            .HasDatabaseName("idx_private_message_conversation_id");
+
         // Relationships
         builder.HasOne(m => m.Sender)
             .WithMany()

@@ -19,7 +19,11 @@ public record UnifiedSendMessageRequest(
 
 public record SendPrivateMessageRequest(Guid ReceiverId, string Content, MessageType Type);
 
-public record GetConversationRequest(int PageNumber = 1, int PageSize = 50);
+public record CursorPaginationRequest(
+    Guid? Before = null,
+    Guid? After = null,
+    int Limit = 50
+);
 
 public record PrivateMessageDto(
     Guid Id,
@@ -35,12 +39,18 @@ public record PrivateMessageDto(
     UserDto Receiver
 );
 
-public record ConversationResponse(
+public record PrivateMessagePageResponse(
     List<PrivateMessageDto> Messages,
-    int TotalCount,
-    int PageNumber,
-    int PageSize,
-    int TotalPages
+    bool HasMore,
+    Guid? NextCursor,
+    Guid? PrevCursor
+);
+
+public record GroupMessagePageResponse(
+    List<GroupMessageDto> Messages,
+    bool HasMore,
+    Guid? NextCursor,
+    Guid? PrevCursor
 );
 
 public record UnreadCountResponse(

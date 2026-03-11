@@ -108,6 +108,9 @@ x86/
 [Aa][Rr][Mm]64/
 bld/
 [Bb]in/
+# Ignore incorrectly named bin directories with backslashes (macOS/Linux)
+**/bin\Debug/
+**/bin\Release/
 [Oo]bj/
 [Ll]og/
 [Ll]ogs/

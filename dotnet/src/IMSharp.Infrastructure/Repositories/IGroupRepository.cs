@@ -8,7 +8,7 @@ public interface IGroupRepository
     Task<IEnumerable<Group>> GetUserGroupsAsync(Guid userId, CancellationToken cancellationToken = default);
     Task<GroupMember?> GetMemberAsync(Guid groupId, Guid userId, CancellationToken cancellationToken = default);
     Task<IEnumerable<GroupMember>> GetMembersAsync(Guid groupId, CancellationToken cancellationToken = default);
-    Task<IEnumerable<GroupMessage>> GetMessagesAsync(Guid groupId, int limit = 50, DateTimeOffset? before = null, CancellationToken cancellationToken = default);
+    Task<List<GroupMessage>> GetMessagesWithCursorAsync(Guid groupId, Guid? before, Guid? after, int limit, CancellationToken cancellationToken = default);
     Task<bool> IsMemberAsync(Guid groupId, Guid userId, CancellationToken cancellationToken = default);
     Task<Group?> GetByGroupNumberAsync(int groupNumber, CancellationToken cancellationToken = default);
     Task<bool> GroupNumberExistsAsync(int groupNumber, CancellationToken cancellationToken = default);
