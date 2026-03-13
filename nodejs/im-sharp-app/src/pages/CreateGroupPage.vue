@@ -76,7 +76,7 @@ async function handleCreateGroup() {
   try {
     // 如果选了头像，先上传
     if (avatarFile.value) {
-      const res = await mediaApi.upload(avatarFile.value)
+      const res = await mediaApi.uploadAvatar(avatarFile.value)
       avatarUrl.value = res.url
     }
 

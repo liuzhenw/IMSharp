@@ -161,8 +161,6 @@ export interface GetGroupJoinRequestsResponse {
 export interface UploadFileResponse {
   url: string
   fileName: string
-  fileSize: number
-  contentType: string
 }
 
 // 通知相关

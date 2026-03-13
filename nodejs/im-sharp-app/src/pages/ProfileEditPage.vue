@@ -54,7 +54,7 @@ async function handleFileSelect(event: Event) {
 
   isUploadingAvatar.value = true
   try {
-    const result = await mediaApi.upload(file)
+    const result = await mediaApi.uploadAvatar(file)
     avatarUrl.value = result.url
     uiStore.showToast('头像上传成功', 'success')
   } catch (error) {

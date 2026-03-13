@@ -1099,24 +1099,26 @@ if (prevCursor) {
 
 ### 3.7 媒体文件相关
 
-#### 3.7.1 上传文件
+#### 3.7.1 上传消息图片
 
-**端点**: `POST /api/media/upload`
+**端点**: `POST /api/media/upload/message`
 **需要认证**: ✅
 **Content-Type**: `multipart/form-data`
 
 **请求参数**:
-- `file` (File): 要上传的文件
+- `file` (File): 要上传的图片文件
 
 **文件限制**:
 - 最大文件大小: 10 MB
 - 允许的文件类型: `.jpg`, `.jpeg`, `.png`, `.gif`, `.webp`
 
+**存储路径**: `uploads/messages/{yyyy-MM-dd}/`（按天分目录）
+
 **响应**:
 ```json
 {
-  "fileName": "unique_file_name.jpg",
-  "url": "http://localhost:5185/api/media/unique_file_name.jpg"
+  "fileName": "messages/2024-01-15/uuid.jpg",
+  "url": "http://localhost:5185/uploads/messages/2024-01-15/uuid.jpg"
 }
 ```
 
@@ -1128,7 +1130,7 @@ if (prevCursor) {
 const formData = new FormData();
 formData.append('file', fileInput.files[0]);
 
-const response = await fetch('http://localhost:5185/api/media/upload', {
+const response = await fetch('http://localhost:5185/api/media/upload/message', {
   method: 'POST',
   headers: {
     'Authorization': 'Bearer your_jwt_token'
@@ -1138,19 +1140,61 @@ const response = await fetch('http://localhost:5185/api/media/upload', {
 const { fileName, url } = await response.json();
 ```
 
-#### 3.7.2 获取文件
+#### 3.7.2 上传头像
 
-**端点**: `GET /api/media/{filename}`
+**端点**: `POST /api/media/upload/avatar`
+**需要认证**: ✅
+**Content-Type**: `multipart/form-data`
+
+**请求参数**:
+- `file` (File): 要上传的头像图片
+
+**文件限制**:
+- 最大文件大小: 10 MB
+- 允许的文件类型: `.jpg`, `.jpeg`, `.png`, `.gif`, `.webp`
+
+**存储路径**: `uploads/avatars/`
+
+**响应**:
+```json
+{
+  "fileName": "avatars/uuid.jpg",
+  "url": "http://localhost:5185/uploads/avatars/uuid.jpg"
+}
+```
+
+**错误码**:
+- `400 Bad Request`: 文件为空、超过大小限制或文件类型不允许
+
+**示例**:
+```javascript
+const formData = new FormData();
+formData.append('file', avatarFile);
+
+const response = await fetch('http://localhost:5185/api/media/upload/avatar', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer your_jwt_token'
+  },
+  body: formData
+});
+const { fileName, url } = await response.json();
+```
+
+#### 3.7.3 获取文件
+
+**端点**: `GET /api/media/{**path}`
 **需要认证**: ❌
 
 **路径参数**:
-- `filename` (string): 文件名
+- `path` (string): 文件相对路径，支持子目录（如 `avatars/uuid.jpg` 或 `messages/2024-01-15/uuid.jpg`）
 
 **响应**: 文件二进制流
 
 **示例**:
 ```html
-<img src="http://localhost:5185/api/media/unique_file_name.jpg" alt="Image">
+<img src="http://localhost:5185/api/media/avatars/uuid.jpg" alt="头像">
+<img src="http://localhost:5185/api/media/messages/2024-01-15/uuid.jpg" alt="消息图片">
 ```
 
 ---
@@ -2114,7 +2158,7 @@ await connection.start();
 const formData = new FormData();
 formData.append('file', imageFile);
 
-const uploadResponse = await fetch('http://localhost:5185/api/media/upload', {
+const uploadResponse = await fetch('http://localhost:5185/api/media/upload/message', {
   method: 'POST',
   headers: {
     'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`

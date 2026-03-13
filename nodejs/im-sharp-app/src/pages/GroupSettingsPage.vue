@@ -152,7 +152,7 @@ async function handleSaveEdit() {
     let avatarUrl: string | undefined
     if (editAvatarFile.value) {
       isUploadingAvatar.value = true
-      const result = await mediaApi.upload(editAvatarFile.value)
+      const result = await mediaApi.uploadAvatar(editAvatarFile.value)
       avatarUrl = result.url
       isUploadingAvatar.value = false
     }

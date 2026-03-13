@@ -7,7 +7,7 @@ export const mediaApi = {
     const formData = new FormData()
     formData.append('file', file)
 
-    const response = await http.post<UploadFileResponse>('/api/media/upload', formData, {
+    const response = await http.post<UploadFileResponse>('/api/media/upload/message', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
@@ -27,7 +27,7 @@ export const mediaApi = {
     const formData = new FormData()
     formData.append('file', file)
 
-    const response = await http.post<UploadFileResponse>('/api/media/avatar', formData, {
+    const response = await http.post<UploadFileResponse>('/api/media/upload/avatar', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },

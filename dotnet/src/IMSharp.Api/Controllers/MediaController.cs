@@ -1,9 +1,7 @@
-using System.Security.Claims;
 using IMSharp.Core.DTOs;
 using IMSharp.Infrastructure.Storage;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Configuration;
 
 namespace IMSharp.Api.Controllers;
 
@@ -16,8 +14,8 @@ public class MediaController(IStorageProvider storageProvider, IConfiguration co
     private readonly long _maxFileSizeBytes = long.Parse(configuration["Storage:Local:MaxFileSizeMB"] ?? "10") * 1024 * 1024;
     private readonly string[] _allowedExtensions = configuration.GetSection("Storage:Local:AllowedExtensions").Get<string[]>() ?? [".jpg", ".jpeg", ".png", ".gif", ".webp"];
 
-    [HttpPost("upload")]
-    public async Task<ActionResult<UploadResponse>> Upload(IFormFile? file, CancellationToken cancellationToken)
+    [HttpPost("upload/{type}")]
+    public async Task<ActionResult<UploadResponse>> Upload(string type, IFormFile? file, CancellationToken cancellationToken)
     {
         if (file == null || file.Length == 0)
             return BadRequest("No file uploaded");
@@ -29,15 +27,24 @@ public class MediaController(IStorageProvider storageProvider, IConfiguration co
         if (!_allowedExtensions.Contains(extension))
             return BadRequest($"File type not allowed. Allowed types: {string.Join(", ", _allowedExtensions)}");
 
-        await using var stream = file.OpenReadStream();
-        var fileName = await storageProvider.SaveAsync(stream, file.FileName, file.ContentType, cancellationToken);
-        var url = storageProvider.GetPublicUrl(fileName);
+        var subPath = type switch
+        {
+            "message" => $"messages/{DateTimeOffset.UtcNow:yyyy-MM-dd}",
+            "avatar" => "avatars",
+            _ => null
+        };
 
-        return Ok(new UploadResponse(fileName, url));
+        if (subPath == null)
+            return BadRequest($"Invalid upload type '{type}'. Allowed types: message, avatar");
+
+        await using var stream = file.OpenReadStream();
+        var relativePath = await storageProvider.SaveAsync(stream, file.FileName, file.ContentType, subPath, cancellationToken);
+        var url = storageProvider.GetPublicUrl(relativePath);
+
+        return Ok(new UploadResponse(relativePath, url));
     }
 
-    [HttpGet("{filename}")]
-    [AllowAnonymous]
+    [HttpGet("{**filename}")]
     public async Task<IActionResult> Get(string filename, CancellationToken cancellationToken)
     {
         try

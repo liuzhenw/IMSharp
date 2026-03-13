@@ -2,12 +2,10 @@ using IMSharp.Core.DTOs;
 using IMSharp.Core.Mappers;
 using IMSharp.Domain.Exceptions;
 using IMSharp.Infrastructure.Repositories;
-using IMSharp.Infrastructure.Storage;
 
 namespace IMSharp.Core.Services;
 
-public class UserService(IUserRepository userRepository, IStorageProvider storageProvider)
-    : IUserService
+public class UserService(IUserRepository userRepository) : IUserService
 {
     private readonly UserMapper _userMapper = new();
 
@@ -15,9 +13,7 @@ public class UserService(IUserRepository userRepository, IStorageProvider storag
     {
         var user = await userRepository.GetByIdAsync(id, cancellationToken);
         if (user == null)
-        {
             throw new NotFoundException($"User with ID {id} not found");
-        }
 
         return _userMapper.ToDto(user);
     }
@@ -32,38 +28,13 @@ public class UserService(IUserRepository userRepository, IStorageProvider storag
     {
         var user = await userRepository.GetByIdAsync(userId, cancellationToken);
         if (user == null)
-        {
             throw new NotFoundException($"User with ID {userId} not found");
-        }
 
         user.DisplayName = request.DisplayName;
 
-        // 如果提供了新头像 URL，更新头像
         if (request.Avatar != null)
-        {
             user.Avatar = request.Avatar;
-        }
 
-        await userRepository.UpdateAsync(user, cancellationToken);
-
-        return _userMapper.ToDto(user);
-    }
-
-    public async Task<UserDto> UpdateAvatarAsync(Guid userId, Stream avatarStream, string fileName, string contentType, CancellationToken cancellationToken = default)
-    {
-        var user = await userRepository.GetByIdAsync(userId, cancellationToken);
-        if (user == null)
-        {
-            throw new NotFoundException($"User with ID {userId} not found");
-        }
-
-        if (!string.IsNullOrEmpty(user.Avatar))
-        {
-            await storageProvider.DeleteAsync(user.Avatar, cancellationToken);
-        }
-
-        var savedFileName = await storageProvider.SaveAsync(avatarStream, fileName, contentType, cancellationToken);
-        user.Avatar = savedFileName;
         await userRepository.UpdateAsync(user, cancellationToken);
 
         return _userMapper.ToDto(user);
