@@ -4,6 +4,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { useChatStore, useContactsStore, useAuthStore, useUiStore } from '@/stores'
 import { MessageBubble, LoadingSpinner, ConfirmationModal, Header, ChatInputBar, SearchInput } from '@/components'
 import { containsScript } from '@/utils/contentValidator'
+import { formatTime, formatDate } from '@/utils/time'
+import { debounce } from '@/utils/debounce'
 import { signalRService, messageStorage } from '@/services'
 import type { PrivateMessage } from '@/types'
 
@@ -157,28 +159,6 @@ function scrollToBottom() {
   }
 }
 
-function formatTime(time: string) {
-  const date = new Date(time)
-  return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
-}
-
-function formatDate(time: string) {
-  const date = new Date(time)
-  const now = new Date()
-  const diff = now.getTime() - date.getTime()
-  const days = Math.floor(diff / (1000 * 60 * 60 * 24))
-
-  if (days === 0) {
-    return '今天'
-  } else if (days === 1) {
-    return '昨天'
-  } else if (days < 7) {
-    return `${days}天前`
-  } else {
-    return date.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' })
-  }
-}
-
 // 判断是否需要显示时间分隔符
 function shouldShowTimestamp(index: number): boolean {
   if (index === 0) return true
@@ -190,15 +170,6 @@ function shouldShowTimestamp(index: number): boolean {
   const prevTime = new Date(prevMsg.createdAt).getTime()
   // 超过5分钟显示时间
   return currentTime - prevTime > 5 * 60 * 1000
-}
-
-// 防抖工具函数
-function debounce<T extends (...args: any[]) => any>(func: T, wait: number): (...args: Parameters<T>) => void {
-  let timeout: ReturnType<typeof setTimeout> | null = null
-  return function (...args: Parameters<T>) {
-    if (timeout) clearTimeout(timeout)
-    timeout = setTimeout(() => func(...args), wait)
-  }
 }
 
 // 切换搜索模式
@@ -418,6 +389,7 @@ function handleKeydown(e: KeyboardEvent) {
               :time="formatTime(message.createdAt)"
               :status="message.status.toLowerCase() as 'sent' | 'delivered' | 'read'"
               :avatar="message.senderId === authStore.user?.id ? authStore.user?.avatar || undefined : chatUser?.avatar || undefined"
+              :show-border="true"
             />
           </div>
         </template>

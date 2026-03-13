@@ -42,11 +42,11 @@ const onlineDotSize = {
     <div
       v-else
       :class="[
-        'rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center border-2 border-white dark:border-slate-900 shadow-sm',
+        'rounded-full bg-gradient-to-br from-blue-400 to-violet-500 flex items-center justify-center border-2 border-white dark:border-slate-900 shadow-sm',
         sizeClasses[size],
       ]"
     >
-      <span class="material-symbols-outlined text-slate-400" :class="size === 'sm' ? 'text-base' : size === 'md' ? 'text-2xl' : size === 'lg' ? 'text-3xl' : 'text-5xl'">
+      <span class="material-symbols-outlined text-white" :class="size === 'sm' ? 'text-base' : size === 'md' ? 'text-2xl' : size === 'lg' ? 'text-3xl' : 'text-5xl'">
         person
       </span>
     </div>

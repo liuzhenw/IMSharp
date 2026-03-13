@@ -4,6 +4,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { useChatStore, useGroupsStore, useAuthStore, useUiStore } from '@/stores'
 import { MessageBubble, LoadingSpinner, Header, ChatInputBar, SearchInput } from '@/components'
 import { containsScript } from '@/utils/contentValidator'
+import { formatTime, formatDate } from '@/utils/time'
+import { debounce } from '@/utils/debounce'
 import { signalRService, messageStorage } from '@/services'
 import type { GroupMessage, User } from '@/types'
 
@@ -228,28 +230,6 @@ function scrollToBottom() {
   }
 }
 
-function formatTime(time: string) {
-  const date = new Date(time)
-  return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
-}
-
-function formatDate(time: string) {
-  const date = new Date(time)
-  const now = new Date()
-  const diff = now.getTime() - date.getTime()
-  const days = Math.floor(diff / (1000 * 60 * 60 * 24))
-
-  if (days === 0) {
-    return '今天'
-  } else if (days === 1) {
-    return '昨天'
-  } else if (days < 7) {
-    return `${days}天前`
-  } else {
-    return date.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' })
-  }
-}
-
 // 判断是否需要显示时间分隔符
 function shouldShowTimestamp(index: number): boolean {
   const item = allItems.value[index]
@@ -302,15 +282,6 @@ function getSenderInfo(message: GroupMessage) {
   return {
     displayName: '未知用户',
     avatar: null
-  }
-}
-
-// 防抖工具函数
-function debounce<T extends (...args: any[]) => any>(func: T, wait: number): (...args: Parameters<T>) => void {
-  let timeout: ReturnType<typeof setTimeout> | null = null
-  return function (...args: Parameters<T>) {
-    if (timeout) clearTimeout(timeout)
-    timeout = setTimeout(() => func(...args), wait)
   }
 }
 
@@ -559,101 +530,24 @@ function handleKeydown(e: KeyboardEvent) {
           </div>
 
           <!-- 消息气泡 -->
-          <div
+          <MessageBubble
+            :content="(item as any).content"
+            :type="item.type as 'Text' | 'Image' | 'File' | 'Audio' | 'Video'"
+            :is-self="((item as any).senderId || (item as any).sender?.id) === authStore.user?.id"
+            :time="formatTime(item.createdAt)"
+            :avatar="((item as any).senderId || (item as any).sender?.id) === authStore.user?.id
+              ? authStore.user?.avatar || undefined
+              : getSenderInfo(item as any).avatar || undefined"
+            :sender-name="((item as any).senderId || (item as any).sender?.id) !== authStore.user?.id
+              ? getSenderInfo(item as any).displayName
+              : undefined"
+            :show-border="true"
             :data-message-id="item.id"
             :class="[
-              'flex items-start gap-3 transition-colors duration-300',
-              ((item as any).senderId || (item as any).sender?.id) === authStore.user?.id ? 'justify-end' : '',
+              'transition-colors duration-300',
               highlightedMessageId === item.id ? 'bg-yellow-100 dark:bg-yellow-900/30 rounded-lg p-2 -m-2' : ''
             ]"
-          >
-            <!-- 头像（他人消息在左，自己消息在右） -->
-            <div
-              v-if="((item as any).senderId || (item as any).sender?.id) !== authStore.user?.id"
-              class="shrink-0"
-            >
-              <div
-                v-if="getSenderInfo(item as any).avatar"
-                class="size-10 rounded-full bg-cover bg-center border border-slate-200 dark:border-slate-700"
-                :style="{ backgroundImage: `url(${getSenderInfo(item as any).avatar})` }"
-              ></div>
-              <div
-                v-else
-                class="size-10 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center border border-slate-200 dark:border-slate-700"
-              >
-                <span class="material-symbols-outlined text-slate-400 text-xl">person</span>
-              </div>
-            </div>
-
-            <div :class="['flex flex-col gap-1 max-w-[75%]', ((item as any).senderId || (item as any).sender?.id) === authStore.user?.id ? 'items-end' : 'items-start']">
-              <!-- 发送者昵称 (非自己的消息才显示) -->
-              <span
-                v-if="((item as any).senderId || (item as any).sender?.id) !== authStore.user?.id"
-                class="text-slate-500 dark:text-slate-400 text-xs font-medium ml-1"
-              >
-                {{ getSenderInfo(item as any).displayName }}
-              </span>
-
-              <!-- 文本消息 -->
-              <div
-                v-if="item.type === 'Text'"
-                :class="[
-                  'px-4 py-2.5 rounded-xl shadow-sm text-sm leading-relaxed break-words',
-                  ((item as any).senderId || (item as any).sender?.id) === authStore.user?.id
-                    ? 'bg-primary text-white rounded-br-none'
-                    : 'bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-bl-none',
-                ]"
-              >
-                <p class="whitespace-pre-wrap">{{ (item as any).content }}</p>
-              </div>
-
-              <!-- 图片消息 -->
-              <div
-                v-else-if="item.type === 'Image'"
-                :class="[
-                  'rounded-xl overflow-hidden shadow-sm',
-                  ((item as any).senderId || (item as any).sender?.id) === authStore.user?.id ? 'rounded-br-none' : 'rounded-bl-none',
-                ]"
-              >
-                <img
-                  :src="(item as any).content"
-                  :alt="'图片消息'"
-                  class="max-w-[200px] max-h-[200px] object-contain cursor-pointer hover:opacity-90 transition-opacity"
-                />
-              </div>
-
-              <!-- 其他类型消息 -->
-              <div
-                v-else
-                :class="[
-                  'px-4 py-2.5 rounded-xl shadow-sm',
-                  ((item as any).senderId || (item as any).sender?.id) === authStore.user?.id
-                    ? 'bg-primary text-white rounded-br-none'
-                    : 'bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-bl-none',
-                ]"
-              >
-                <p class="text-sm">[{{ item.type }}]</p>
-              </div>
-            </div>
-
-            <!-- 自己的头像在右边 -->
-            <div
-              v-if="((item as any).senderId || (item as any).sender?.id) === authStore.user?.id"
-              class="shrink-0"
-            >
-              <div
-                v-if="authStore.user?.avatar"
-                class="size-10 rounded-full bg-cover bg-center border border-primary/20"
-                :style="{ backgroundImage: `url(${authStore.user.avatar})` }"
-              ></div>
-              <div
-                v-else
-                class="size-10 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center border border-primary/20"
-              >
-                <span class="material-symbols-outlined text-slate-400 text-xl">person</span>
-              </div>
-            </div>
-          </div>
+          />
           </template>
         </template>
       </template>

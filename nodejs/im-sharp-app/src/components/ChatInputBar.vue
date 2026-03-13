@@ -133,15 +133,16 @@ async function handlePaste(e: ClipboardEvent) {
         </button>
       </div>
 
-      <!-- 发送按钮（右侧，高度与输入框一致） -->
+      <!-- 发送按钮（右侧，扁平设计） -->
       <button
         v-if="messageInput.trim() || props.isSending"
         @click="handleSendMessage"
         :disabled="props.isSending"
-        class="px-4 flex items-center justify-center rounded-full bg-primary text-white hover:bg-primary/90 transition-colors disabled:opacity-50 shrink-0 self-stretch"
+        class="px-5 flex items-center justify-center rounded-full bg-primary text-white hover:bg-primary/90 transition-colors disabled:opacity-50 shrink-0 self-center"
+        style="height: 2.6rem"
       >
-        <span v-if="props.isSending" class="material-symbols-outlined text-2xl animate-spin">progress_activity</span>
-        <span v-else class="material-symbols-outlined text-2xl">send</span>
+        <span v-if="props.isSending" class="material-symbols-outlined text-xl animate-spin">progress_activity</span>
+        <span v-else class="material-symbols-outlined text-xl">send</span>
       </button>
     </div>
   </footer>

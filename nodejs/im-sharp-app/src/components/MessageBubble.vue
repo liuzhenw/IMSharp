@@ -9,6 +9,8 @@ interface Props {
   time?: string
   status?: 'sending' | 'sent' | 'delivered' | 'read' | 'failed'
   avatar?: string
+  senderName?: string
+  showBorder?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -17,6 +19,8 @@ const props = withDefaults(defineProps<Props>(), {
   time: '',
   status: 'sent',
   avatar: '',
+  senderName: '',
+  showBorder: false,
 })
 
 const imageLoaded = ref(false)
@@ -61,18 +65,32 @@ function handleCloseViewer() {
     <div class="shrink-0">
       <div
         v-if="avatar"
-        class="size-10 rounded-full bg-cover bg-center"
+        :class="[
+          'size-10 rounded-full bg-cover bg-center',
+          showBorder ? (isSelf ? 'border border-primary/20' : 'border border-slate-200 dark:border-slate-700') : ''
+        ]"
         :style="{ backgroundImage: `url(${avatar})` }"
       ></div>
       <div
         v-else
-        class="size-10 rounded-full bg-gradient-to-br from-blue-400 to-violet-500 flex items-center justify-center shadow-sm"
+        :class="[
+          'size-10 rounded-full bg-gradient-to-br from-blue-400 to-violet-500 flex items-center justify-center shadow-sm',
+          showBorder ? (isSelf ? 'border border-primary/20' : 'border border-slate-200 dark:border-slate-700') : ''
+        ]"
       >
         <span class="material-symbols-outlined text-white text-xl">person</span>
       </div>
     </div>
 
     <div :class="['flex flex-col max-w-[70%]', isSelf ? 'items-end' : 'items-start']">
+      <!-- 发送者昵称（群聊场景，非自己的消息才显示） -->
+      <span
+        v-if="senderName && !isSelf"
+        class="text-slate-500 dark:text-slate-400 text-xs font-medium ml-1 mb-1"
+      >
+        {{ senderName }}
+      </span>
+
       <!-- 文本消息 -->
       <div
         v-if="type === 'Text'"
