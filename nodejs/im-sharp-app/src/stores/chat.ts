@@ -203,9 +203,18 @@ export const useChatStore = defineStore('chat', () => {
           }),
         ])
 
-        // 清空旧数据，写入新计算结果
-        Object.keys(unreadCounts).forEach(k => delete unreadCounts[k])
-        Object.assign(unreadCounts, counts)
+        // 合并 IndexedDB 计算结果：取 IndexedDB 与当前内存值的较大者，避免覆盖 SignalR 增量
+        for (const [key, count] of Object.entries(counts)) {
+          unreadCounts[key] = Math.max(count, unreadCounts[key] || 0)
+        }
+        // 清理已不存在的会话（好友/群组已删除的）
+        const validIds = new Set([
+          ...contactsStore.friends.map(f => f.id),
+          ...groupsStore.groups.map(g => g.id),
+        ])
+        Object.keys(unreadCounts).forEach(k => {
+          if (!validIds.has(k)) delete unreadCounts[k]
+        })
         saveUnreadCounts()
       }
 
@@ -670,7 +679,7 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
-  function addPrivateMessage(message: PrivateMessage) {
+  async function addPrivateMessage(message: PrivateMessage) {
     // 确定会话 ID (对方的 ID)
     const conversationId = message.senderId === currentUserId.value
       ? message.receiverId
@@ -682,6 +691,8 @@ export const useChatStore = defineStore('chat', () => {
 
     const messages = privateMessages.value.get(conversationId)
     if (messages) {
+      // 按 ID 去重，避免 MessageSent 回显和 ReceiveMessage 重复
+      if (messages.some(m => m.id === message.id)) return
       messages.push(message)
     }
 
@@ -697,8 +708,8 @@ export const useChatStore = defineStore('chat', () => {
       console.error('保存消息到 IndexedDB 失败:', err)
     })
 
-    // 更新会话列表
-    updateConversation(conversationId, 'private', message.content, message.createdAt, message.type)
+    // 先确保会话条目存在（可能需要 await loadFriends），再递增未读数
+    await updateConversation(conversationId, 'private', message.content, message.createdAt, message.type)
 
     // 只有接收到的消息才增加未读数,且不在当前查看的聊天中
     if (message.receiverId === currentUserId.value && conversationId !== currentChatId.value) {
@@ -715,6 +726,7 @@ export const useChatStore = defineStore('chat', () => {
 
     const messages = groupMessages.value.get(message.groupId)
     if (messages) {
+      if (messages.some(m => m.id === message.id)) return
       messages.push(message)
     }
 
@@ -771,7 +783,12 @@ export const useChatStore = defineStore('chat', () => {
       let user: User | undefined
 
       if (type === 'private') {
-        const friend = contactsStore.friends.find((f: User) => f.id === id)
+        let friend = contactsStore.friends.find((f: User) => f.id === id)
+        if (!friend) {
+          // 好友列表可能还未加载完，主动刷新一次
+          await contactsStore.loadFriends()
+          friend = contactsStore.friends.find((f: User) => f.id === id)
+        }
         if (friend) {
           name = friend.displayName || friend.username
           avatar = friend.avatar

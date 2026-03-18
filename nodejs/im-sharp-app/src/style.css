@@ -18,6 +18,15 @@ body {
   min-height: 100vh;
 }
 
+/* embed 模式：撑满 iframe */
+html.embed-mode,
+html.embed-mode body,
+html.embed-mode #app {
+  height: 100%;
+  min-height: unset;
+  overflow: hidden;
+}
+
 /* 隐藏滚动条 */
 .hide-scrollbar::-webkit-scrollbar {
   display: none;

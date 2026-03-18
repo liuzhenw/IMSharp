@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IMSharp Embed SDK 演示</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f1f5f9;
+      color: #1e293b;
+      min-height: 100vh;
+    }
+
+    /* 模拟外部网站的页面内容 */
+    .site-header {
+      background: #fff;
+      border-bottom: 1px solid #e2e8f0;
+      padding: 0 32px;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .site-logo { font-size: 20px; font-weight: 700; color: #6366f1; }
+    .site-nav { display: flex; gap: 24px; }
+    .site-nav a { color: #64748b; text-decoration: none; font-size: 14px; }
+    .site-nav a:hover { color: #6366f1; }
+
+    .hero {
+      max-width: 900px;
+      margin: 64px auto 0;
+      padding: 0 32px;
+      text-align: center;
+    }
+    .hero h1 { font-size: 40px; font-weight: 800; line-height: 1.2; margin-bottom: 16px; }
+    .hero h1 span { color: #6366f1; }
+    .hero p { font-size: 18px; color: #64748b; margin-bottom: 40px; }
+
+    /* 控制面板 */
+    .control-panel {
+      max-width: 900px;
+      margin: 48px auto;
+      padding: 0 32px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+      border: 1px solid #e2e8f0;
+    }
+    .card h3 { font-size: 15px; font-weight: 600; margin-bottom: 16px; color: #374151; }
+
+    .form-group { margin-bottom: 14px; }
+    .form-group label { display: block; font-size: 13px; color: #64748b; margin-bottom: 6px; font-weight: 500; }
+    .form-group input, .form-group select {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .form-group input:focus, .form-group select:focus { border-color: #6366f1; }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 9px 18px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: all 0.15s;
+    }
+    .btn-primary { background: #6366f1; color: #fff; }
+    .btn-primary:hover { background: #4f46e5; }
+    .btn-secondary { background: #f1f5f9; color: #374151; border: 1px solid #e2e8f0; }
+    .btn-secondary:hover { background: #e2e8f0; }
+    .btn-danger { background: #fee2e2; color: #dc2626; }
+    .btn-danger:hover { background: #fecaca; }
+
+    .btn-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
+
+    /* 事件日志 */
+    .event-log {
+      background: #0f172a;
+      border-radius: 10px;
+      padding: 16px;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 12px;
+      height: 180px;
+      overflow-y: auto;
+      color: #94a3b8;
+    }
+    .event-log .log-entry { margin-bottom: 4px; line-height: 1.5; }
+    .log-time { color: #475569; }
+    .log-type-ready { color: #34d399; }
+    .log-type-unread { color: #60a5fa; }
+    .log-type-message { color: #f59e0b; }
+    .log-type-expired { color: #f87171; }
+    .log-type-error { color: #f87171; }
+    .log-type-info { color: #a78bfa; }
+
+    /* 代码示例 */
+    .code-block {
+      background: #0f172a;
+      border-radius: 10px;
+      padding: 20px;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 13px;
+      color: #e2e8f0;
+      overflow-x: auto;
+      line-height: 1.7;
+      grid-column: 1 / -1;
+    }
+    .code-block .kw { color: #c084fc; }
+    .code-block .str { color: #86efac; }
+    .code-block .fn { color: #60a5fa; }
+    .code-block .cm { color: #475569; }
+    .code-block .num { color: #fb923c; }
+
+    .status-dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #d1d5db;
+      margin-right: 6px;
+    }
+    .status-dot.active { background: #34d399; }
+
+    .badge-preview {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 20px;
+      font-size: 13px;
+      color: #64748b;
+    }
+    .badge-count {
+      background: #ef4444;
+      color: #fff;
+      font-size: 11px;
+      font-weight: 700;
+      min-width: 18px;
+      height: 18px;
+      border-radius: 9px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 4px;
+    }
+
+    .full-width { grid-column: 1 / -1; }
+
+    @media (max-width: 640px) {
+      .control-panel { grid-template-columns: 1fr; }
+      .hero h1 { font-size: 28px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 模拟外部网站 -->
+  <header class="site-header">
+    <div class="site-logo">MyApp</div>
+    <nav class="site-nav">
+      <a href="#">首页</a>
+      <a href="#">产品</a>
+      <a href="#">文档</a>
+    </nav>
+  </header>
+
+  <div class="hero">
+    <h1>IMSharp Embed SDK<br /><span>演示页面</span></h1>
+    <p>这是一个模拟外部网站，展示如何将 IMSharp 聊天 Widget 嵌入到任意页面。<br />右下角的悬浮按钮即为 Widget 入口。</p>
+  </div>
+
+  <div class="control-panel">
+
+    <!-- 初始化配置 -->
+    <div class="card">
+      <h3>⚙️ 初始化配置</h3>
+      <div class="form-group">
+        <label>IMSharp 服务地址 (baseUrl)</label>
+        <input id="baseUrl" type="text" value="http://localhost:5173" />
+      </div>
+      <div class="form-group">
+        <label>OAuth Token</label>
+        <input id="oAuthToken" type="text" placeholder="粘贴你的 OAuth Access Token" />
+      </div>
+      <div class="form-group">
+        <label>主题</label>
+        <select id="theme">
+          <option value="light">Light</option>
+          <option value="dark">Dark</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>面板尺寸</label>
+        <div style="display:flex;gap:8px;">
+          <input id="panelWidth" type="text" value="360px" placeholder="宽度" />
+          <input id="panelHeight" type="text" value="520px" placeholder="高度" />
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="initWidget()">▶ 初始化 Widget</button>
+        <button class="btn btn-danger" onclick="destroyWidget()">✕ 销毁</button>
+      </div>
+      <div style="margin-top:12px;font-size:13px;color:#64748b;">
+        状态：<span class="status-dot" id="statusDot"></span><span id="statusText">未初始化</span>
+      </div>
+    </div>
+
+    <!-- 运行时控制 -->
+    <div class="card">
+      <h3>🎮 运行时控制</h3>
+      <div class="form-group">
+        <label>更新 Token（模拟 token 刷新）</label>
+        <input id="newToken" type="text" placeholder="新的 OAuth Token" />
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-secondary" onclick="updateToken()">🔄 更新 Token</button>
+      </div>
+      <div class="form-group" style="margin-top:16px;">
+        <label>切换主题</label>
+        <div class="btn-row">
+          <button class="btn btn-secondary" onclick="setTheme('light')">☀️ Light</button>
+          <button class="btn btn-secondary" onclick="setTheme('dark')">🌙 Dark</button>
+        </div>
+      </div>
+      <div style="margin-top:16px;">
+        <label style="font-size:13px;color:#64748b;font-weight:500;display:block;margin-bottom:8px;">当前未读数</label>
+        <div class="badge-preview">
+          <span>未读消息</span>
+          <span class="badge-count" id="badgePreview">0</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 事件日志 -->
+    <div class="card full-width">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <h3 style="margin:0;">📋 事件日志</h3>
+        <button class="btn btn-secondary" style="padding:5px 12px;font-size:12px;" onclick="clearLog()">清空</button>
+      </div>
+      <div class="event-log" id="eventLog">
+        <div class="log-entry"><span class="log-time">[--:--:--]</span> <span class="log-type-info">等待初始化...</span></div>
+      </div>
+    </div>
+
+    <!-- 代码示例 -->
+    <div class="code-block full-width">
+      <div style="color:#475569;margin-bottom:12px;font-size:11px;">// 完整使用示例</div>
+<span class="cm">// 1. 引入 SDK</span>
+<span class="cm">// &lt;script src="https://imsharp-domain.com/embed.js"&gt;&lt;/script&gt;</span>
+
+<span class="cm">// 2. 初始化</span>
+<span class="kw">IMSharpEmbed</span>.<span class="fn">init</span>({
+  baseUrl:     <span class="str">'https://imsharp-domain.com'</span>,
+  oAuthToken:  <span class="str">'your-oauth-token'</span>,   <span class="cm">// 外部网站自行获取</span>
+  theme:       <span class="str">'light'</span>,              <span class="cm">// 'light' | 'dark'</span>
+  panelWidth:  <span class="str">'360px'</span>,
+  panelHeight: <span class="str">'520px'</span>,
+
+  onReady:        () => console.<span class="fn">log</span>(<span class="str">'Widget 就绪'</span>),
+  onMessage:      (msg) => console.<span class="fn">log</span>(<span class="str">'新消息:'</span>, msg),
+  onTokenExpired: () => {
+    <span class="cm">// token 过期时刷新并更新</span>
+    <span class="kw">const</span> newToken = <span class="fn">refreshMyToken</span>()
+    <span class="kw">IMSharpEmbed</span>.<span class="fn">updateToken</span>(newToken)
+  }
+});
+    </div>
+
+  </div>
+
+  <!-- 引入 SDK -->
+  <script src="/embed.js"></script>
+  <script>
+    var widgetInitialized = false;
+
+    function log(type, message) {
+      var logEl = document.getElementById('eventLog');
+      var now = new Date();
+      var time = now.toTimeString().slice(0, 8);
+      var entry = document.createElement('div');
+      entry.className = 'log-entry';
+      entry.innerHTML = '<span class="log-time">[' + time + ']</span> <span class="log-type-' + type + '">' + message + '</span>';
+      logEl.appendChild(entry);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function setStatus(active, text) {
+      document.getElementById('statusDot').className = 'status-dot' + (active ? ' active' : '');
+      document.getElementById('statusText').textContent = text;
+    }
+
+    function clearLog() {
+      document.getElementById('eventLog').innerHTML = '';
+    }
+
+    function initWidget() {
+      if (widgetInitialized) {
+        log('info', '⚠ Widget 已初始化，请先销毁再重新初始化');
+        return;
+      }
+
+      var baseUrl = document.getElementById('baseUrl').value.trim();
+      var oAuthToken = document.getElementById('oAuthToken').value.trim();
+      var theme = document.getElementById('theme').value;
+      var panelWidth = document.getElementById('panelWidth').value.trim() || '360px';
+      var panelHeight = document.getElementById('panelHeight').value.trim() || '520px';
+
+      if (!oAuthToken) {
+        log('error', '✕ 请填写 OAuth Token');
+        return;
+      }
+
+      log('info', '▶ 正在初始化 Widget...');
+      log('info', '  baseUrl: ' + baseUrl);
+      log('info', '  theme: ' + theme + ' | size: ' + panelWidth + ' × ' + panelHeight);
+
+      IMSharpEmbed.init({
+        baseUrl: baseUrl,
+        oAuthToken: oAuthToken,
+        theme: theme,
+        panelWidth: panelWidth,
+        panelHeight: panelHeight,
+
+        onReady: function () {
+          log('ready', '✓ Widget 就绪 (ready)');
+          setStatus(true, '运行中');
+        },
+
+        onMessage: function (msg) {
+          log('message', '💬 新消息 (new-message): id=' + msg.id + ' sender=' + msg.senderId);
+        },
+
+        onTokenExpired: function () {
+          log('expired', '⚠ Token 已过期 (token-expired)，请调用 updateToken()');
+          setStatus(false, 'Token 过期');
+        }
+      });
+
+      // 监听未读数变化更新演示面板
+      var origListen = IMSharpEmbed._listenMessages.bind(IMSharpEmbed);
+      window.addEventListener('message', function (e) {
+        if (!e.data || e.data.source !== 'imsharp-embed') return;
+        if (e.data.type === 'unread-count-changed') {
+          var count = e.data.data && e.data.data.count != null ? e.data.data.count : 0;
+          document.getElementById('badgePreview').textContent = count;
+          log('unread', '🔔 未读数变化 (unread-count-changed): count=' + count);
+        }
+      });
+
+      widgetInitialized = true;
+      setStatus(false, '初始化中...');
+      log('info', '✓ IMSharpEmbed.init() 调用完成，等待 iframe 就绪');
+    }
+
+    function destroyWidget() {
+      var container = document.getElementById('imsharp-widget-container');
+      if (container) {
+        container.remove();
+        widgetInitialized = false;
+        // 重置 SDK 内部状态
+        IMSharpEmbed._panel = null;
+        IMSharpEmbed._fab = null;
+        IMSharpEmbed._badge = null;
+        IMSharpEmbed._iframe = null;
+        IMSharpEmbed._isOpen = false;
+        document.getElementById('badgePreview').textContent = '0';
+        setStatus(false, '未初始化');
+        log('info', '✕ Widget 已销毁');
+      } else {
+        log('info', '⚠ Widget 未初始化');
+      }
+    }
+
+    function updateToken() {
+      var newToken = document.getElementById('newToken').value.trim();
+      if (!newToken) {
+        log('error', '✕ 请填写新的 OAuth Token');
+        return;
+      }
+      if (!widgetInitialized) {
+        log('error', '✕ Widget 未初始化');
+        return;
+      }
+      IMSharpEmbed.updateToken(newToken);
+      log('info', '🔄 已发送 update-token 消息到 iframe');
+    }
+
+    function setTheme(theme) {
+      if (!widgetInitialized) {
+        log('error', '✕ Widget 未初始化');
+        return;
+      }
+      IMSharpEmbed.setTheme(theme);
+      log('info', '🎨 已发送 set-theme: ' + theme);
+    }
+  </script>
+</body>
+</html>

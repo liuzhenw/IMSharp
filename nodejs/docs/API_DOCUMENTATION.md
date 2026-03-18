@@ -2476,6 +2476,84 @@ if (prevCursor) {
 
 ---
 
-**文档生成时间**: 2026-03-11
+**文档生成时间**: 2026-03-18
+
+---
+
+## 14. Embed Widget 嵌入功能
+
+### 14.1 概述
+
+IMSharp 支持通过 iframe 嵌入到任意外部网站，提供悬浮按钮 + 聊天面板的 Widget 体验。
+
+### 14.2 安全头配置
+
+后端根据请求路径自动设置安全响应头：
+
+- 非 `/embed` 路径：返回 `X-Frame-Options: DENY` 和 `Content-Security-Policy: frame-ancestors 'self'`
+- `/embed` 路径：根据 `Embed:AllowedOrigins` 配置返回 `Content-Security-Policy: frame-ancestors 'self' <origins>`
+
+**后端配置** (`appsettings.json`):
+```json
+{
+  "Embed": {
+    "AllowedOrigins": ["https://your-site.com"]
+  }
+}
+```
+
+### 14.3 Embed SDK 使用
+
+外部网站引入 `embed.js` 后调用 `IMSharpEmbed.init()`:
+
+```html
+<script src="https://imsharp-domain.com/embed.js"></script>
+<script>
+  IMSharpEmbed.init({
+    baseUrl: 'https://imsharp-domain.com',
+    oAuthToken: '外部网站自行获取的 OAuth token',
+    theme: 'light',           // 可选: 'light' | 'dark'
+    panelWidth: '360px',      // 可选，默认 360px
+    panelHeight: '520px',     // 可选，默认 520px
+    onReady: function() { console.log('Widget ready'); },
+    onMessage: function(msg) { console.log('New message:', msg); },
+    onTokenExpired: function() { /* 刷新 token 后调用 updateToken */ }
+  });
+</script>
+```
+
+**SDK 方法**:
+- `IMSharpEmbed.updateToken(oAuthToken)` - 更新 OAuth Token（token 过期时调用）
+- `IMSharpEmbed.setTheme(theme)` - 切换主题
+
+### 14.4 postMessage 通信协议
+
+**父页面 → iframe** (`source: 'imsharp-host'`):
+
+| type | data | 说明 |
+|------|------|------|
+| `update-token` | `{ oAuthToken }` | 更新 OAuth Token |
+| `set-theme` | `{ theme }` | 切换主题 |
+| `panel-opened` | - | 面板被打开 |
+
+**iframe → 父页面** (`source: 'imsharp-embed'`):
+
+| type | data | 说明 |
+|------|------|------|
+| `ready` | - | iframe 加载就绪 |
+| `unread-count-changed` | `{ count }` | 未读总数变化 |
+| `new-message` | `{ id, content, senderId }` | 收到新消息 |
+| `token-expired` | - | token 过期需刷新 |
+| `error` | `{ message }` | 错误通知 |
+
+### 14.5 Embed 路由
+
+| 路径 | 说明 |
+|------|------|
+| `/embed?oAuthToken=xxx&theme=light` | 会话列表（Widget 首页） |
+| `/embed/chat/:id` | 私聊详情 |
+| `/embed/group/:id` | 群聊详情 |
+
+认证通过 URL query 参数 `oAuthToken` 传入，iframe 内部调用 `POST /api/auth/login` 换取 JWT，不写入 localStorage。
 **API 版本**: v1.2.0
 **文档版本**: v1.2.0

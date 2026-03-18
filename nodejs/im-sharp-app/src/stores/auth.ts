@@ -57,6 +57,38 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  async function loginWithOAuthToken(oAuthToken: string, skipPersist: boolean = false) {
+    isLoading.value = true
+    try {
+      const response = await authApi.login({ oAuthAccessToken: oAuthToken } as LoginRequest)
+
+      token.value = response.accessToken
+      refreshToken.value = response.refreshToken
+      user.value = response.user
+
+      if (!skipPersist) {
+        localStorage.setItem('token', response.accessToken)
+        localStorage.setItem('refreshToken', response.refreshToken)
+        localStorage.setItem('user', JSON.stringify(response.user))
+      }
+
+      // 设置 chatStore 的 currentUserId
+      const { useChatStore } = await import('@/stores')
+      const chatStore = useChatStore()
+      chatStore.setCurrentUserId(response.user.id)
+
+      // 连接 SignalR
+      await signalRService.connect(response.accessToken)
+
+      return response
+    } catch (error) {
+      console.error('loginWithOAuthToken failed:', error)
+      throw error
+    } finally {
+      isLoading.value = false
+    }
+  }
+
   async function refreshAccessToken() {
     if (!refreshToken.value) {
       throw new Error('No refresh token available')
@@ -162,6 +194,7 @@ export const useAuthStore = defineStore('auth', () => {
     isLoading,
     isAuthenticated,
     login,
+    loginWithOAuthToken,
     refreshAccessToken,
     fetchCurrentUser,
     logout,

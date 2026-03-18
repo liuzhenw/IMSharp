@@ -1,6 +1,7 @@
 import axios, { type AxiosInstance, type AxiosError, type InternalAxiosRequestConfig } from 'axios'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
+import { useEmbedStore } from '@/stores/embed'
 import type { ErrorResponse } from '@/types'
 
 const http: AxiosInstance = axios.create({
@@ -55,9 +56,14 @@ http.interceptors.response.use(
         return http.request(originalRequest)
       } catch {
         const authStore = useAuthStore()
+        const embedStore = useEmbedStore()
         await authStore.logout()
-        uiStore.showToast('登录已过期，请重新登录', 'error')
-        window.location.href = '/login'
+        if (embedStore.isEmbedMode) {
+          embedStore.notifyParent('token-expired')
+        } else {
+          uiStore.showToast('登录已过期，请重新登录', 'error')
+          window.location.href = '/login'
+        }
         return Promise.reject(error)
       }
     }

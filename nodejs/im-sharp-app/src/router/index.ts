@@ -132,6 +132,28 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/pages/ProfileEditPage.vue'),
     meta: { requiresAuth: true },
   },
+  {
+    path: '/embed',
+    component: () => import('@/pages/embed/EmbedLayout.vue'),
+    meta: { requiresAuth: false, isEmbed: true },
+    children: [
+      {
+        path: '',
+        name: 'embed-conversations',
+        component: () => import('@/pages/embed/EmbedConversationsPage.vue'),
+      },
+      {
+        path: 'chat/:id',
+        name: 'embed-chat',
+        component: () => import('@/pages/embed/EmbedChatPage.vue'),
+      },
+      {
+        path: 'group/:id',
+        name: 'embed-group-chat',
+        component: () => import('@/pages/embed/EmbedGroupChatPage.vue'),
+      },
+    ],
+  },
 ]
 
 const router = createRouter({

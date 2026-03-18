@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { onMounted, computed } from 'vue'
+import { useRoute } from 'vue-router'
 import { useAuthStore, useUiStore, useChatStore, useContactsStore, useGroupsStore } from '@/stores'
 import { Toast, FloatingActionButton } from '@/components'
 import { signalRService } from '@/services/signalr'
@@ -10,6 +11,9 @@ const uiStore = useUiStore()
 const chatStore = useChatStore()
 const contactsStore = useContactsStore()
 const groupsStore = useGroupsStore()
+const route = useRoute()
+
+const isEmbed = computed(() => !!route.meta?.isEmbed)
 
 onMounted(async () => {
   // 初始化 UI (暗色模式)
@@ -57,19 +61,21 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div id="app" class="min-h-screen">
+  <div id="app" :class="{ 'min-h-screen': !isEmbed }">
     <RouterView />
 
-    <!-- Global Toast -->
-    <Toast
-      v-if="uiStore.toast.visible"
-      :message="uiStore.toast.message"
-      :type="uiStore.toast.type"
-      @close="uiStore.hideToast"
-    />
+    <template v-if="!isEmbed">
+      <!-- Global Toast -->
+      <Toast
+        v-if="uiStore.toast.visible"
+        :message="uiStore.toast.message"
+        :type="uiStore.toast.type"
+        @close="uiStore.hideToast"
+      />
 
-    <!-- Floating Action Button -->
-    <FloatingActionButton v-if="uiStore.showFloatingButton" />
+      <!-- Floating Action Button -->
+      <FloatingActionButton v-if="uiStore.showFloatingButton" />
+    </template>
   </div>
 </template>
 

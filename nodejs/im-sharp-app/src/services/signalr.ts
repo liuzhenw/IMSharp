@@ -6,7 +6,7 @@ class SignalRService {
   private connectionState: SignalRConnectionState = 'Disconnected' as SignalRConnectionState
   private eventHandlers: Map<keyof SignalREvents, Function[]> = new Map()
   private reconnectAttempts = 0
-  private maxReconnectAttempts = 5
+  private maxReconnectAttempts = 99
   private stateChangeCallback: ((state: SignalRConnectionState) => void) | null = null
   private currentToken: string = ''
 

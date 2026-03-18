@@ -136,11 +136,13 @@ builder.Services.AddSwaggerGen(c =>
 
 // Configure CORS
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
+var embedOrigins = builder.Configuration.GetSection("Embed:AllowedOrigins").Get<string[]>() ?? [];
+var allOrigins = allowedOrigins.Concat(embedOrigins).Distinct().ToArray();
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
-        policy.WithOrigins(allowedOrigins)
+        policy.WithOrigins(allOrigins)
             .AllowAnyMethod()
             .AllowAnyHeader()
             .AllowCredentials(); // SignalR 必需
@@ -164,6 +166,7 @@ if (app.Environment.IsDevelopment())
 app.UseStaticFiles();
 
 app.UseCors();
+app.UseMiddleware<SecurityHeadersMiddleware>();
 app.UseAuthentication();
 app.UseAuthorization();
 
@@ -191,8 +194,8 @@ static async Task MigrateDatabaseAsync(WebApplication app)
     {
         logger.LogInformation("开始检查数据库迁移状态");
 
-        var pendingMigrations = await context.Database.GetPendingMigrationsAsync();
-        var pendingCount = pendingMigrations.Count();
+        var pendingMigrations = (await context.Database.GetPendingMigrationsAsync()).ToList();
+        var pendingCount = pendingMigrations.Count;
 
         if (pendingCount == 0)
         {
