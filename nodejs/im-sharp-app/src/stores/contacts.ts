@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import { friendsApi, usersApi } from '@/services'
 import { signalRService } from '@/services'
@@ -10,6 +10,11 @@ export const useContactsStore = defineStore('contacts', () => {
   const receivedRequests = ref<FriendRequest[]>([])
   const sentRequests = ref<FriendRequest[]>([])
   const onlineUsers = ref<Set<string>>(new Set())
+
+  // Computed
+  const pendingRequestsCount = computed(() =>
+    receivedRequests.value.filter(r => r.status === 'Pending').length
+  )
 
   // Actions
   async function loadFriends() {
@@ -163,6 +168,7 @@ export const useContactsStore = defineStore('contacts', () => {
     receivedRequests,
     sentRequests,
     onlineUsers,
+    pendingRequestsCount,
     loadFriends,
     loadReceivedRequests,
     loadSentRequests,

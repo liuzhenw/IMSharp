@@ -220,7 +220,15 @@ export const useChatStore = defineStore('chat', () => {
 
       // 从好友构建私聊会话
       const friendConversations: Conversation[] = contactsStore.friends.map(friend => {
-        const lastMsgInfo = conversationLastMessages.value.get(friend.id)
+        let lastMsgInfo = conversationLastMessages.value.get(friend.id)
+        // 兜底：从内存中的消息取最新一条
+        if (!lastMsgInfo) {
+          const msgs = privateMessages.value.get(friend.id)
+          if (msgs && msgs.length > 0) {
+            const latest = msgs[msgs.length - 1]!
+            lastMsgInfo = { lastMessage: latest.content, lastMessageTime: latest.createdAt, lastMessageType: latest.type }
+          }
+        }
         return {
           id: friend.id,
           type: 'private' as const,
@@ -237,7 +245,15 @@ export const useChatStore = defineStore('chat', () => {
 
       // 从群组构建群聊会话
       const groupConversations: Conversation[] = groupsStore.groups.map(group => {
-        const lastMsgInfo = conversationLastMessages.value.get(group.id)
+        let lastMsgInfo = conversationLastMessages.value.get(group.id)
+        // 兜底：从内存中的消息取最新一条
+        if (!lastMsgInfo) {
+          const msgs = groupMessages.value.get(group.id)
+          if (msgs && msgs.length > 0) {
+            const latest = msgs[msgs.length - 1]!
+            lastMsgInfo = { lastMessage: latest.content, lastMessageTime: latest.createdAt, lastMessageType: latest.type }
+          }
+        }
         return {
           id: group.id,
           type: 'group' as const,
@@ -324,6 +340,17 @@ export const useChatStore = defineStore('chat', () => {
           if (latestMessage) {
             await saveLastReadPosition(friendId, latestMessage.id)
           }
+
+          // 更新会话最后消息信息（用于会话列表预览）
+          const newest = response.messages[0]
+          if (newest) {
+            conversationLastMessages.value.set(friendId, {
+              lastMessage: newest.content,
+              lastMessageTime: newest.createdAt,
+              lastMessageType: newest.type,
+            })
+            saveConversationLastMessages()
+          }
         }
 
         return response
@@ -352,6 +379,14 @@ export const useChatStore = defineStore('chat', () => {
         const latestMessage = response.messages[0]
         if (latestMessage) {
           await saveLastReadPosition(friendId, latestMessage.id)
+
+          // 更新会话最后消息信息（用于会话列表预览）
+          conversationLastMessages.value.set(friendId, {
+            lastMessage: latestMessage.content,
+            lastMessageTime: latestMessage.createdAt,
+            lastMessageType: latestMessage.type,
+          })
+          saveConversationLastMessages()
         }
       }
 
@@ -489,6 +524,17 @@ export const useChatStore = defineStore('chat', () => {
           if (latestMessage) {
             await saveLastReadPosition(groupId, latestMessage.id)
           }
+
+          // 更新会话最后消息信息（用于会话列表预览）
+          const newest = response.messages[0]
+          if (newest) {
+            conversationLastMessages.value.set(groupId, {
+              lastMessage: newest.content,
+              lastMessageTime: newest.createdAt,
+              lastMessageType: newest.type,
+            })
+            saveConversationLastMessages()
+          }
         }
 
         return response
@@ -517,6 +563,14 @@ export const useChatStore = defineStore('chat', () => {
         const latestMessage = response.messages[0]
         if (latestMessage) {
           await saveLastReadPosition(groupId, latestMessage.id)
+
+          // 更新会话最后消息信息（用于会话列表预览）
+          conversationLastMessages.value.set(groupId, {
+            lastMessage: latestMessage.content,
+            lastMessageTime: latestMessage.createdAt,
+            lastMessageType: latestMessage.type,
+          })
+          saveConversationLastMessages()
         }
       }
 

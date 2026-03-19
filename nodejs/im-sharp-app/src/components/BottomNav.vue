@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
-import { useChatStore } from '@/stores'
+import { useChatStore, useContactsStore } from '@/stores'
 import { Badge } from '@/components'
 
 const route = useRoute()
 const chatStore = useChatStore()
+const contactsStore = useContactsStore()
 
 const tabs = [
   { id: 'chats', icon: 'chat_bubble', label: '消息', path: '/chats' },
@@ -45,6 +46,12 @@ const activeTab = computed(() => {
           <Badge
             v-if="tab.id === 'chats' && chatStore.totalUnreadCount > 0"
             :count="chatStore.totalUnreadCount"
+            class="absolute -top-1 -right-2"
+          />
+          <!-- 好友请求徽章 -->
+          <Badge
+            v-if="tab.id === 'contacts' && contactsStore.pendingRequestsCount > 0"
+            :count="contactsStore.pendingRequestsCount"
             class="absolute -top-1 -right-2"
           />
         </div>

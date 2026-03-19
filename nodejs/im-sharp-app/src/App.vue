@@ -38,6 +38,11 @@ onMounted(async () => {
     contactsStore.setupSignalRListeners()
     groupsStore.setupSignalRListeners()
 
+    // 加载好友请求数据（用于底部导航栏 badge 显示）
+    contactsStore.loadReceivedRequests().catch(err => {
+      console.error('加载好友请求失败:', err)
+    })
+
     // 从 IndexedDB 加载已读位置
     try {
       await chatStore.loadLastReadPositions()
