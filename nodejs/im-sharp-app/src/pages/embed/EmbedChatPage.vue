@@ -152,7 +152,7 @@ function shouldShowTimestamp(index: number): boolean {
       </button>
       <div class="flex-1 min-w-0">
         <h2 class="text-base font-semibold truncate">{{ chatUser?.displayName || chatUser?.username || '聊天' }}</h2>
-        <span class="text-xs" :class="chatUser?.isOnline ? 'text-emerald-500' : 'text-slate-400'">
+        <span class="text-xs text-slate-400">
           {{ isTyping ? '正在输入...' : (chatUser?.isOnline ? '在线' : '离线') }}
         </span>
       </div>

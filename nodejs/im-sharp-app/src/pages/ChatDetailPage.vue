@@ -277,7 +277,7 @@ function handleKeydown(e: KeyboardEvent) {
           <h1 class="text-lg font-bold leading-none text-slate-900 dark:text-white">{{ chatUser.displayName || chatUser.username }}</h1>
           <span
             v-if="isTyping"
-            class="text-[10px] text-primary font-medium"
+            class="text-[10px] text-slate-400 font-medium"
           >
             正在输入...
           </span>

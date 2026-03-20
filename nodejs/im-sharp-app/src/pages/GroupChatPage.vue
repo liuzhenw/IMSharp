@@ -364,7 +364,7 @@ function handleKeydown(e: KeyboardEvent) {
 
 <template>
   <div class="text-slate-900 dark:text-slate-100 h-screen flex flex-col relative">
-    <Header :title="group?.name || '群聊'" :show-back="true" @back="router.push('/groups')">
+    <Header :title="group?.name || '群聊'" :show-back="true" @back="router.push('/chats')">
       <template #title>
         <!-- 搜索模式：显示标题 -->
         <div v-if="isSearchMode" class="flex flex-col items-center">
