@@ -181,13 +181,6 @@ onUnmounted(async () => {
 
   // 清除当前聊天 ID
   chatStore.setCurrentChatId(null)
-
-  // 离开 SignalR 群组房间
-  try {
-    await signalRService.leaveGroup(groupId)
-  } catch (error) {
-    console.error('离开群组房间失败:', error)
-  }
 })
 
 // 监听新消息,自动滚动到底部

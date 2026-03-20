@@ -104,16 +104,11 @@ onMounted(async () => {
   }
 })
 
-onUnmounted(async () => {
+onUnmounted(() => {
   signalRService.off('Reconnected', handleReconnected)
   signalRService.off('GroupMemberJoined', handleMemberJoined)
   signalRService.off('MemberLeftGroup', handleMemberLeft)
   chatStore.setCurrentChatId(null)
-  try {
-    await signalRService.leaveGroup(groupId)
-  } catch (error) {
-    console.error('离开群组房间失败:', error)
-  }
 })
 
 watch(allItems, async (newItems, oldItems) => {
