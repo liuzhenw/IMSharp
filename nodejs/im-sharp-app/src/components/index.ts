@@ -3,6 +3,7 @@ export { default as BottomNav } from './BottomNav.vue'
 export { default as Header } from './Header.vue'
 export { default as TabBar } from './TabBar.vue'
 export { default as FloatingActionButton } from './FloatingActionButton.vue'
+export { default as ConversationLayout } from './ConversationLayout.vue'
 
 // 对话框和弹窗组件
 export { default as ConfirmationModal } from './ConfirmationModal.vue'
@@ -18,6 +19,7 @@ export { default as Textarea } from './Textarea.vue'
 export { default as SearchInput } from './SearchInput.vue'
 export { default as Toggle } from './Toggle.vue'
 export { default as ChatInputBar } from './ChatInputBar.vue'
+export { default as ChatSearchPanel } from './ChatSearchPanel.vue'
 
 // 数据展示组件
 export { default as Avatar } from './Avatar.vue'
@@ -26,6 +28,7 @@ export { default as ChatListItem } from './ChatListItem.vue'
 export { default as ContactListItem } from './ContactListItem.vue'
 export { default as MessageBubble } from './MessageBubble.vue'
 export { default as NoticeBar } from './NoticeBar.vue'
+export { default as ChatTimeline } from './ChatTimeline.vue'
 
 // 反馈组件
 export { default as LoadingSpinner } from './LoadingSpinner.vue'

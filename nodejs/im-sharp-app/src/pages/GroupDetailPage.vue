@@ -53,12 +53,7 @@ onMounted(async () => {
 })
 
 function handleBack() {
-  if (window.history.length > 1) {
-    router.back()
-    return
-  }
-
-  router.push('/groups')
+  router.push(`/groups/${groupId}/chat`)
 }
 
 function handleSendMessage() {
