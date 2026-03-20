@@ -1,4 +1,4 @@
-import type { PrivateMessage, GroupMessage } from './models'
+import type { PrivateMessage, GroupJoinRequest, GroupMessage } from './models'
 
 // SignalR 事件接口
 export interface SignalREvents {
@@ -34,6 +34,12 @@ export interface SignalREvents {
 
   // 好友请求被处理（接受或拒绝）
   FriendRequestProcessed: (requestId: string, accepted: boolean) => void
+
+  // 收到新的入群申请
+  GroupJoinRequestReceived: (request: GroupJoinRequest) => void
+
+  // 入群申请已被处理
+  GroupJoinRequestProcessed: (request: GroupJoinRequest) => void
 
   // 好友被添加
   FriendAdded: (userId: string) => void

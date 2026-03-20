@@ -43,6 +43,13 @@ onMounted(async () => {
       console.error('加载好友请求失败:', err)
     })
 
+    // 加载入群申请数据（用于底部导航栏 badge 显示）
+    groupsStore.loadGroups()
+      .then(() => groupsStore.loadAllPendingJoinRequests())
+      .catch(err => {
+        console.error('加载入群申请失败:', err)
+      })
+
     // 从 IndexedDB 加载已读位置
     try {
       await chatStore.loadLastReadPositions()

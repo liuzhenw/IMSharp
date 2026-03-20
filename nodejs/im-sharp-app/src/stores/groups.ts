@@ -242,6 +242,8 @@ export const useGroupsStore = defineStore('groups', () => {
   // 加载所有我管理的群组的待处理入群申请
   async function loadAllPendingJoinRequests() {
     try {
+      pendingJoinRequests.value = new Map()
+
       // 获取当前用户 ID
       const {useAuthStore} = await import('./auth')
       const authStore = useAuthStore()
@@ -382,6 +384,14 @@ export const useGroupsStore = defineStore('groups', () => {
           groups.value[index] = group
         }
       })
+    })
+
+    signalRService.on('GroupJoinRequestReceived', () => {
+      loadAllPendingJoinRequests()
+    })
+
+    signalRService.on('GroupJoinRequestProcessed', () => {
+      loadAllPendingJoinRequests()
     })
   }
 

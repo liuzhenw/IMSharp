@@ -231,6 +231,16 @@ class SignalRService {
       this.emit('FriendRequestProcessed', requestId, accepted)
     })
 
+    // 收到新的入群申请
+    this.connection.on('GroupJoinRequestReceived', (request) => {
+      this.emit('GroupJoinRequestReceived', request)
+    })
+
+    // 入群申请已被处理
+    this.connection.on('GroupJoinRequestProcessed', (request) => {
+      this.emit('GroupJoinRequestProcessed', request)
+    })
+
     // 好友被添加
     this.connection.on('FriendAdded', (userId) => {
       this.emit('FriendAdded', userId)
