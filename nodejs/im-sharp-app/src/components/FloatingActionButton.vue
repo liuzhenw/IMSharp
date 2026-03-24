@@ -153,6 +153,6 @@ onUnmounted(() => {
     @touchstart="handleDragStart"
     @click="handleClick"
   >
-    <span class="material-symbols-outlined text-2xl">link</span>
+    <span class="text-sm font-medium">首页</span>
   </button>
 </template>
