@@ -39,14 +39,15 @@ onMounted(async () => {
     groupsStore.setupSignalRListeners()
 
     // 加载好友请求数据（用于底部导航栏 badge 显示）
-    contactsStore.loadReceivedRequests().catch(err => {
+    contactsStore.loadReceivedRequests().catch((err) => {
       console.error('加载好友请求失败:', err)
     })
 
     // 加载入群申请数据（用于底部导航栏 badge 显示）
-    groupsStore.loadGroups()
+    groupsStore
+      .loadGroups()
       .then(() => groupsStore.loadAllPendingJoinRequests())
-      .catch(err => {
+      .catch((err) => {
         console.error('加载入群申请失败:', err)
       })
 
@@ -64,8 +65,8 @@ onMounted(async () => {
       console.error('IndexedDB 初始化失败:', error)
     }
 
-    // 清理 30 天前的旧消息 (后台执行,不阻塞)
-    chatStore.cleanupOldMessages(30).catch(err => {
+    // 清理 7 天前的旧消息 (后台执行,不阻塞)
+    chatStore.cleanupOldMessages(7).catch((err) => {
       console.error('清理旧消息失败:', err)
     })
   }

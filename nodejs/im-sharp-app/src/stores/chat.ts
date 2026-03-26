@@ -1385,9 +1385,9 @@ export const useChatStore = defineStore('chat', () => {
 
   /**
    * 清理旧消息
-   * @param daysToKeep 保留天数 (默认 30 天)
+   * @param daysToKeep 保留天数 (默认 7 天)
    */
-  async function cleanupOldMessages(daysToKeep = 30) {
+  async function cleanupOldMessages(daysToKeep = 7) {
     try {
       await messageStorage.deleteOldMessages(daysToKeep)
     } catch (error) {

@@ -2,41 +2,21 @@ import { db } from './db'
 import type { PrivateMessage, GroupMessage } from '@/types'
 import type { LastReadPosition } from './db'
 
-const MAX_PRIVATE_MESSAGES = 5000
-const MAX_GROUP_MESSAGES = 5000
+const MESSAGE_RETENTION_DAYS = 7
 
-async function getProtectedMessageIds(): Promise<Set<string>> {
-  const positions = await db.lastReadPositions.toArray()
-  return new Set(positions.map((position) => position.lastReadMessageId))
+function getRetentionCutoffTime(daysToKeep = MESSAGE_RETENTION_DAYS): string {
+  const cutoffDate = new Date()
+  cutoffDate.setDate(cutoffDate.getDate() - daysToKeep)
+  return cutoffDate.toISOString()
 }
 
-async function pruneMessagesIfNeeded(
-  table: typeof db.privateMessages | typeof db.groupMessages,
-  maxCount: number,
-): Promise<void> {
-  const total = await table.count()
-  if (total <= maxCount) {
-    return
-  }
+async function pruneMessagesIfNeeded(): Promise<void> {
+  const cutoffTime = getRetentionCutoffTime()
 
-  const protectedIds = await getProtectedMessageIds()
-  const allIds = (await table.orderBy('createdAt').primaryKeys()) as string[]
-  const idsToDelete: string[] = []
-
-  for (const id of allIds) {
-    if (protectedIds.has(id)) {
-      continue
-    }
-
-    idsToDelete.push(id)
-    if (idsToDelete.length >= total - maxCount) {
-      break
-    }
-  }
-
-  if (idsToDelete.length > 0) {
-    await table.bulkDelete(idsToDelete)
-  }
+  await Promise.all([
+    db.privateMessages.where('createdAt').below(cutoffTime).delete(),
+    db.groupMessages.where('createdAt').below(cutoffTime).delete(),
+  ])
 }
 
 /**
@@ -52,7 +32,7 @@ export const messageStorage = {
   async savePrivateMessage(message: PrivateMessage): Promise<void> {
     try {
       await db.privateMessages.put(message)
-      await pruneMessagesIfNeeded(db.privateMessages, MAX_PRIVATE_MESSAGES)
+      await pruneMessagesIfNeeded()
     } catch (error) {
       console.error('保存私聊消息失败:', error)
       throw error
@@ -93,7 +73,7 @@ export const messageStorage = {
   async savePrivateMessages(messages: PrivateMessage[]): Promise<void> {
     try {
       await db.privateMessages.bulkPut(messages)
-      await pruneMessagesIfNeeded(db.privateMessages, MAX_PRIVATE_MESSAGES)
+      await pruneMessagesIfNeeded()
     } catch (error) {
       console.error('批量保存私聊消息失败:', error)
       throw error
@@ -194,7 +174,7 @@ export const messageStorage = {
   async saveGroupMessage(message: GroupMessage): Promise<void> {
     try {
       await db.groupMessages.put(message)
-      await pruneMessagesIfNeeded(db.groupMessages, MAX_GROUP_MESSAGES)
+      await pruneMessagesIfNeeded()
     } catch (error) {
       console.error('保存群聊消息失败:', error)
       throw error
@@ -224,7 +204,7 @@ export const messageStorage = {
   async saveGroupMessages(messages: GroupMessage[]): Promise<void> {
     try {
       await db.groupMessages.bulkPut(messages)
-      await pruneMessagesIfNeeded(db.groupMessages, MAX_GROUP_MESSAGES)
+      await pruneMessagesIfNeeded()
     } catch (error) {
       console.error('批量保存群聊消息失败:', error)
       throw error
@@ -287,13 +267,11 @@ export const messageStorage = {
 
   /**
    * 删除过期消息
-   * @param daysToKeep 保留天数 (默认 30 天)
+   * @param daysToKeep 保留天数 (默认 7 天)
    */
-  async deleteOldMessages(daysToKeep = 30): Promise<void> {
+  async deleteOldMessages(daysToKeep = MESSAGE_RETENTION_DAYS): Promise<void> {
     try {
-      const cutoffDate = new Date()
-      cutoffDate.setDate(cutoffDate.getDate() - daysToKeep)
-      const cutoffTime = cutoffDate.toISOString()
+      const cutoffTime = getRetentionCutoffTime(daysToKeep)
 
       // 删除私聊消息
       await db.privateMessages.where('createdAt').below(cutoffTime).delete()
@@ -455,7 +433,7 @@ export const messageStorage = {
         .sortBy('createdAt')
 
       const lastRead = allMessages.find((m) => m.id === lastReadMessageId)
-      if (!lastRead) return 0
+      if (!lastRead) return received.length
 
       // 统计已读位置之后收到的消息数
       return received.filter((m) => m.createdAt > lastRead.createdAt).length
@@ -487,7 +465,9 @@ export const messageStorage = {
       const messages = await db.groupMessages.where('groupId').equals(groupId).sortBy('createdAt')
 
       const lastRead = messages.find((m) => m.id === lastReadMessageId)
-      if (!lastRead) return 0
+      if (!lastRead) {
+        return messages.filter((m) => m.senderId !== currentUserId).length
+      }
 
       return messages.filter(
         (m) => m.createdAt > lastRead.createdAt && m.senderId !== currentUserId,
