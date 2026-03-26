@@ -3,6 +3,7 @@ import { onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useChatStore } from '@/stores'
 import { ChatListItem } from '@/components'
+import { formatConversationTime } from '@/utils/time'
 
 const router = useRouter()
 const chatStore = useChatStore()
@@ -11,24 +12,6 @@ const chatStore = useChatStore()
 onMounted(async () => {
   await chatStore.loadConversations()
 })
-
-function formatTime(time: string | null) {
-  if (!time) return ''
-  const date = new Date(time)
-  const now = new Date()
-  const diff = now.getTime() - date.getTime()
-  const days = Math.floor(diff / (1000 * 60 * 60 * 24))
-
-  if (days === 0) {
-    return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
-  } else if (days === 1) {
-    return '昨天'
-  } else if (days < 7) {
-    return `${days}天前`
-  } else {
-    return date.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' })
-  }
-}
 
 function openConversation(conv: { id: string; type: string }) {
   if (conv.type === 'group') {
@@ -54,7 +37,7 @@ function openConversation(conv: { id: string; type: string }) {
         :name="conv.name"
         :avatar="conv.avatar || undefined"
         :last-message="conv.lastMessage || undefined"
-        :time="conv.lastMessageTime ? formatTime(conv.lastMessageTime) : undefined"
+        :time="formatConversationTime(conv.lastMessageTime)"
         :unread-count="conv.unreadCount"
         :is-group="conv.type === 'group'"
         @click="openConversation(conv)"

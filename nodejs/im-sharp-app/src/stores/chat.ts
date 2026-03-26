@@ -5,6 +5,12 @@ import { signalRService } from '@/services'
 import { messageStorage } from '@/services/messageStorage'
 import type { PrivateMessage, GroupMessage, User } from '@/types'
 import { MessageStatus } from '@/types'
+import {
+  createHistoryCursorState,
+  getMessageBoundaries,
+  mergeMessages,
+  sortMessagesByCreatedAt,
+} from '@/utils/messageHistory'
 
 // 会话类型
 interface Conversation {
@@ -61,11 +67,16 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   // 会话最后消息信息的持久化
-  const conversationLastMessages = ref<Map<string, {
-    lastMessage: string
-    lastMessageTime: string
-    lastMessageType?: string
-  }>>(new Map())
+  const conversationLastMessages = ref<
+    Map<
+      string,
+      {
+        lastMessage: string
+        lastMessageTime: string
+        lastMessageType?: string
+      }
+    >
+  >(new Map())
 
   // 从 localStorage 加载会话最后消息信息
   function loadConversationLastMessages() {
@@ -121,17 +132,27 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   // 游标状态管理
-  const privateCursors = ref<Map<string, {
-    nextCursor: string | null  // 用于加载更早的历史消息
-    prevCursor: string | null  // 用于加载更新的消息
-    hasMore: boolean           // 是否还有更多历史消息
-  }>>(new Map())
+  const privateCursors = ref<
+    Map<
+      string,
+      {
+        nextCursor: string | null // 用于加载更早的历史消息
+        prevCursor: string | null // 用于加载更新的消息
+        hasMore: boolean // 是否还有更多历史消息
+      }
+    >
+  >(new Map())
 
-  const groupCursors = ref<Map<string, {
-    nextCursor: string | null
-    prevCursor: string | null
-    hasMore: boolean
-  }>>(new Map())
+  const groupCursors = ref<
+    Map<
+      string,
+      {
+        nextCursor: string | null
+        prevCursor: string | null
+        hasMore: boolean
+      }
+    >
+  >(new Map())
 
   // Getters
   const totalUnreadCount = computed(() => {
@@ -139,23 +160,25 @@ export const useChatStore = defineStore('chat', () => {
   })
 
   const sortedConversations = computed(() => {
-    return [...conversations.value].map(c => ({
-      ...c,
-      // 动态获取最新的未读数
-      unreadCount: unreadCounts[c.id] || 0
-    })).sort((a, b) => {
-      // 1. 优先按未读数排序（有未读的在前）
-      const hasUnreadA = a.unreadCount > 0 ? 1 : 0
-      const hasUnreadB = b.unreadCount > 0 ? 1 : 0
-      if (hasUnreadA !== hasUnreadB) {
-        return hasUnreadB - hasUnreadA
-      }
+    return [...conversations.value]
+      .map((c) => ({
+        ...c,
+        // 动态获取最新的未读数
+        unreadCount: unreadCounts[c.id] || 0,
+      }))
+      .sort((a, b) => {
+        // 1. 优先按未读数排序（有未读的在前）
+        const hasUnreadA = a.unreadCount > 0 ? 1 : 0
+        const hasUnreadB = b.unreadCount > 0 ? 1 : 0
+        if (hasUnreadA !== hasUnreadB) {
+          return hasUnreadB - hasUnreadA
+        }
 
-      // 2. 其次按最后消息时间排序
-      const timeA = a.lastMessageTime ? new Date(a.lastMessageTime).getTime() : 0
-      const timeB = b.lastMessageTime ? new Date(b.lastMessageTime).getTime() : 0
-      return timeB - timeA
-    })
+        // 2. 其次按最后消息时间排序
+        const timeA = a.lastMessageTime ? new Date(a.lastMessageTime).getTime() : 0
+        const timeB = b.lastMessageTime ? new Date(b.lastMessageTime).getTime() : 0
+        return timeB - timeA
+      })
   })
 
   // Actions
@@ -190,16 +213,24 @@ export const useChatStore = defineStore('chat', () => {
         const counts: Record<string, number> = {}
 
         await Promise.all([
-          ...contactsStore.friends.map(async friend => {
+          ...contactsStore.friends.map(async (friend) => {
             const lastRead = lastReadMessageIds.value.get(friend.id)
             if (lastRead) {
-              counts[friend.id] = await messageStorage.countPrivateUnreadMessages(friend.id, uid, lastRead)
+              counts[friend.id] = await messageStorage.countPrivateUnreadMessages(
+                friend.id,
+                uid,
+                lastRead,
+              )
             }
           }),
-          ...groupsStore.groups.map(async group => {
+          ...groupsStore.groups.map(async (group) => {
             const lastRead = lastReadMessageIds.value.get(group.id)
             if (lastRead) {
-              counts[group.id] = await messageStorage.countGroupUnreadMessages(group.id, uid, lastRead)
+              counts[group.id] = await messageStorage.countGroupUnreadMessages(
+                group.id,
+                uid,
+                lastRead,
+              )
             }
           }),
         ])
@@ -210,24 +241,28 @@ export const useChatStore = defineStore('chat', () => {
         }
         // 清理已不存在的会话（好友/群组已删除的）
         const validIds = new Set([
-          ...contactsStore.friends.map(f => f.id),
-          ...groupsStore.groups.map(g => g.id),
+          ...contactsStore.friends.map((f) => f.id),
+          ...groupsStore.groups.map((g) => g.id),
         ])
-        Object.keys(unreadCounts).forEach(k => {
+        Object.keys(unreadCounts).forEach((k) => {
           if (!validIds.has(k)) delete unreadCounts[k]
         })
         saveUnreadCounts()
       }
 
       // 从好友构建私聊会话
-      const friendConversations: Conversation[] = contactsStore.friends.map(friend => {
+      const friendConversations: Conversation[] = contactsStore.friends.map((friend) => {
         let lastMsgInfo = conversationLastMessages.value.get(friend.id)
         // 兜底：从内存中的消息取最新一条
         if (!lastMsgInfo) {
           const msgs = privateMessages.value.get(friend.id)
           if (msgs && msgs.length > 0) {
             const latest = msgs[msgs.length - 1]!
-            lastMsgInfo = { lastMessage: latest.content, lastMessageTime: latest.createdAt, lastMessageType: latest.type }
+            lastMsgInfo = {
+              lastMessage: latest.content,
+              lastMessageTime: latest.createdAt,
+              lastMessageType: latest.type,
+            }
           }
         }
         return {
@@ -245,14 +280,18 @@ export const useChatStore = defineStore('chat', () => {
       })
 
       // 从群组构建群聊会话
-      const groupConversations: Conversation[] = groupsStore.groups.map(group => {
+      const groupConversations: Conversation[] = groupsStore.groups.map((group) => {
         let lastMsgInfo = conversationLastMessages.value.get(group.id)
         // 兜底：从内存中的消息取最新一条
         if (!lastMsgInfo) {
           const msgs = groupMessages.value.get(group.id)
           if (msgs && msgs.length > 0) {
             const latest = msgs[msgs.length - 1]!
-            lastMsgInfo = { lastMessage: latest.content, lastMessageTime: latest.createdAt, lastMessageType: latest.type }
+            lastMsgInfo = {
+              lastMessage: latest.content,
+              lastMessageTime: latest.createdAt,
+              lastMessageType: latest.type,
+            }
           }
         }
         return {
@@ -274,28 +313,54 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
-  // 消息去重和合并辅助函数
-  function mergeMessages<T extends { id: string; createdAt: string }>(
-    existing: T[],
-    newMessages: T[]
-  ): T[] {
-    // 使用 Map 去重
-    const messageMap = new Map(existing.map(m => [m.id, m]))
-    newMessages.forEach(m => messageMap.set(m.id, m))
+  function canLoadOlderPrivateMessages(friendId: string) {
+    const messages = privateMessages.value.get(friendId) || []
+    if (messages.length === 0) {
+      return false
+    }
 
-    // 转换为数组并按时间排序
-    const merged = Array.from(messageMap.values()).sort((a, b) => {
-      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-    })
+    const cursor = privateCursors.value.get(friendId)
+    if (!cursor) {
+      return true
+    }
 
-    return merged
+    return cursor.hasMore && Boolean(cursor.nextCursor)
   }
 
-  async function loadPrivateMessages(
-    friendId: string,
-    options?: { limit?: number }
-  ) {
+  function canLoadOlderGroupMessages(groupId: string) {
+    const messages = groupMessages.value.get(groupId) || []
+    if (messages.length === 0) {
+      return false
+    }
+
+    const cursor = groupCursors.value.get(groupId)
+    if (!cursor) {
+      return true
+    }
+
+    return cursor.hasMore && Boolean(cursor.nextCursor)
+  }
+
+  async function hasLocalOlderPrivateMessages(friendId: string, beforeMessageId: string) {
+    if (!currentUserId.value) {
+      return false
+    }
+
+    return await messageStorage.hasPrivateMessagesBefore(
+      friendId,
+      currentUserId.value,
+      beforeMessageId,
+    )
+  }
+
+  async function hasLocalOlderGroupMessages(groupId: string, beforeMessageId: string) {
+    return await messageStorage.hasGroupMessagesBefore(groupId, beforeMessageId)
+  }
+
+  async function loadPrivateMessages(friendId: string, options?: { limit?: number }) {
     try {
+      const limit = options?.limit || 50
+
       // 0. 确保已读位置已加载
       await ensureLastReadPositionsLoaded()
 
@@ -303,10 +368,10 @@ export const useChatStore = defineStore('chat', () => {
       if (currentUserId.value) {
         const cachedMessages = await messageStorage.getPrivateMessages(
           friendId,
-          currentUserId.value
+          currentUserId.value,
         )
         if (cachedMessages.length > 0) {
-          privateMessages.value.set(friendId, cachedMessages)
+          privateMessages.value.set(friendId, sortMessagesByCreatedAt(cachedMessages))
         }
       }
 
@@ -317,22 +382,62 @@ export const useChatStore = defineStore('chat', () => {
       if (lastReadMessageId) {
         const response = await messagesApi.getConversation(friendId, {
           after: lastReadMessageId,
-          limit: options?.limit || 50,
+          limit,
         })
+
+        const existing = privateMessages.value.get(friendId) || []
+        const merged = mergeMessages(existing, response.messages)
+        if (merged.length === 0) {
+          const latestResponse = await messagesApi.getConversation(friendId, { limit })
+          const normalizedMessages = sortMessagesByCreatedAt(latestResponse.messages)
+          privateMessages.value.set(friendId, normalizedMessages)
+          privateCursors.value.set(
+            friendId,
+            createHistoryCursorState(normalizedMessages, {
+              nextCursor: latestResponse.nextCursor,
+              prevCursor: latestResponse.prevCursor,
+              hasMore: latestResponse.hasMore,
+            }),
+          )
+
+          if (latestResponse.messages.length > 0) {
+            await messageStorage.savePrivateMessages(latestResponse.messages)
+
+            const latestMessage = latestResponse.messages[0]
+            if (latestMessage) {
+              await saveLastReadPosition(friendId, latestMessage.id)
+              conversationLastMessages.value.set(friendId, {
+                lastMessage: latestMessage.content,
+                lastMessageTime: latestMessage.createdAt,
+                lastMessageType: latestMessage.type,
+              })
+              saveConversationLastMessages()
+            }
+          }
+
+          return latestResponse
+        }
+
+        if (merged.length > 0) {
+          privateMessages.value.set(friendId, merged)
+          const existingCursor = privateCursors.value.get(friendId)
+          const { oldest, newest } = getMessageBoundaries(merged)
+          const hasLocalOlder = oldest
+            ? await hasLocalOlderPrivateMessages(friendId, oldest.id)
+            : false
+
+          privateCursors.value.set(
+            friendId,
+            createHistoryCursorState(merged, {
+              nextCursor: existingCursor?.nextCursor ?? oldest?.id ?? null,
+              prevCursor: response.prevCursor ?? newest?.id ?? null,
+              hasMore: response.hasMore || hasLocalOlder,
+            }),
+          )
+        }
 
         // 如果有新消息，合并到现有消息列表
         if (response.messages.length > 0) {
-          const existing = privateMessages.value.get(friendId) || []
-          const merged = mergeMessages(existing, response.messages)
-          privateMessages.value.set(friendId, merged)
-
-          // 更新游标状态
-          privateCursors.value.set(friendId, {
-            nextCursor: response.nextCursor,
-            prevCursor: response.prevCursor,
-            hasMore: response.hasMore,
-          })
-
           // 保存到 IndexedDB
           await messageStorage.savePrivateMessages(response.messages)
 
@@ -359,18 +464,24 @@ export const useChatStore = defineStore('chat', () => {
 
       // 4. 首次加载：从 API 加载最新消息（不提供 before/after）
       const response = await messagesApi.getConversation(friendId, {
-        limit: options?.limit || 50,
+        limit,
       })
+      const normalizedMessages = sortMessagesByCreatedAt(response.messages)
+      const { oldest } = getMessageBoundaries(normalizedMessages)
+      const hasLocalOlder = oldest ? await hasLocalOlderPrivateMessages(friendId, oldest.id) : false
 
       // 5. 更新消息列表（覆盖缓存）
-      privateMessages.value.set(friendId, response.messages)
+      privateMessages.value.set(friendId, normalizedMessages)
 
       // 6. 更新游标状态
-      privateCursors.value.set(friendId, {
-        nextCursor: response.nextCursor,
-        prevCursor: response.prevCursor,
-        hasMore: response.hasMore,
-      })
+      privateCursors.value.set(
+        friendId,
+        createHistoryCursorState(normalizedMessages, {
+          nextCursor: response.nextCursor,
+          prevCursor: response.prevCursor,
+          hasMore: response.hasMore || hasLocalOlder,
+        }),
+      )
 
       // 7. 保存到 IndexedDB
       if (response.messages.length > 0) {
@@ -399,33 +510,82 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   // 加载更早的历史消息（向上滚动）
-  async function loadOlderPrivateMessages(
-    friendId: string,
-    options?: { limit?: number }
-  ) {
+  async function loadOlderPrivateMessages(friendId: string, options?: { limit?: number }) {
     try {
-      const cursor = privateCursors.value.get(friendId)
-      if (!cursor?.hasMore || !cursor.nextCursor) {
+      const limit = options?.limit || 50
+      const existing = privateMessages.value.get(friendId) || []
+      const { oldest, newest } = getMessageBoundaries(existing)
+      if (!oldest) {
         return { messages: [], hasMore: false, nextCursor: null, prevCursor: null }
+      }
+
+      if (currentUserId.value) {
+        const localOlderMessages = await messageStorage.getPrivateMessagesBefore(
+          friendId,
+          currentUserId.value,
+          oldest.id,
+          limit,
+        )
+
+        if (localOlderMessages.length > 0) {
+          const merged = mergeMessages(existing, localOlderMessages)
+          privateMessages.value.set(friendId, merged)
+
+          const cursor = privateCursors.value.get(friendId)
+          const localNextCursor = getMessageBoundaries(localOlderMessages).oldest?.id ?? oldest.id
+          const hasMoreLocal = await hasLocalOlderPrivateMessages(friendId, localNextCursor)
+          privateCursors.value.set(
+            friendId,
+            createHistoryCursorState(merged, {
+              nextCursor: localNextCursor,
+              prevCursor: cursor?.prevCursor ?? newest?.id ?? null,
+              hasMore: hasMoreLocal || Boolean(cursor?.hasMore),
+            }),
+          )
+
+          return {
+            messages: localOlderMessages,
+            hasMore: hasMoreLocal || Boolean(cursor?.hasMore),
+            nextCursor: localNextCursor,
+            prevCursor: cursor?.prevCursor ?? newest?.id ?? null,
+          }
+        }
+      }
+
+      const cursor = privateCursors.value.get(friendId)
+      const beforeCursor = cursor?.nextCursor ?? oldest.id
+      if (!beforeCursor || (cursor && !cursor.hasMore)) {
+        return {
+          messages: [],
+          hasMore: false,
+          nextCursor: null,
+          prevCursor: cursor?.prevCursor ?? newest?.id ?? null,
+        }
       }
 
       // 使用 nextCursor 加载更早的消息
       const response = await messagesApi.getConversation(friendId, {
-        before: cursor.nextCursor,
-        limit: options?.limit || 50,
+        before: beforeCursor,
+        limit,
       })
 
       // 合并消息（去重）
-      const existing = privateMessages.value.get(friendId) || []
       const merged = mergeMessages(existing, response.messages)
       privateMessages.value.set(friendId, merged)
+      const mergedOldest = getMessageBoundaries(merged).oldest
+      const hasLocalOlder = mergedOldest
+        ? await hasLocalOlderPrivateMessages(friendId, mergedOldest.id)
+        : false
 
       // 更新游标状态
-      privateCursors.value.set(friendId, {
-        nextCursor: response.nextCursor,
-        prevCursor: cursor.prevCursor, // 保持原有的 prevCursor
-        hasMore: response.hasMore,
-      })
+      privateCursors.value.set(
+        friendId,
+        createHistoryCursorState(merged, {
+          nextCursor: response.nextCursor,
+          prevCursor: cursor?.prevCursor ?? newest?.id ?? null,
+          hasMore: response.hasMore || hasLocalOlder,
+        }),
+      )
 
       // 保存到 IndexedDB
       if (response.messages.length > 0) {
@@ -440,10 +600,7 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   // 加载更新的消息（向下滚动或刷新）
-  async function loadNewerPrivateMessages(
-    friendId: string,
-    options?: { limit?: number }
-  ) {
+  async function loadNewerPrivateMessages(friendId: string, options?: { limit?: number }) {
     try {
       const cursor = privateCursors.value.get(friendId)
       if (!cursor?.prevCursor) {
@@ -480,18 +637,17 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
-  async function loadGroupMessages(
-    groupId: string,
-    options?: { limit?: number }
-  ) {
+  async function loadGroupMessages(groupId: string, options?: { limit?: number }) {
     try {
+      const limit = options?.limit || 50
+
       // 0. 确保已读位置已加载
       await ensureLastReadPositionsLoaded()
 
       // 1. 先从 IndexedDB 加载缓存消息（快速显示）
       const cachedMessages = await messageStorage.getGroupMessages(groupId)
       if (cachedMessages.length > 0) {
-        groupMessages.value.set(groupId, cachedMessages)
+        groupMessages.value.set(groupId, sortMessagesByCreatedAt(cachedMessages))
       }
 
       // 2. 获取最后已读消息 ID
@@ -501,22 +657,62 @@ export const useChatStore = defineStore('chat', () => {
       if (lastReadMessageId) {
         const response = await groupsApi.getMessages(groupId, {
           after: lastReadMessageId,
-          limit: options?.limit || 50,
+          limit,
         })
+
+        const existing = groupMessages.value.get(groupId) || []
+        const merged = mergeMessages(existing, response.messages)
+        if (merged.length === 0) {
+          const latestResponse = await groupsApi.getMessages(groupId, { limit })
+          const normalizedMessages = sortMessagesByCreatedAt(latestResponse.messages)
+          groupMessages.value.set(groupId, normalizedMessages)
+          groupCursors.value.set(
+            groupId,
+            createHistoryCursorState(normalizedMessages, {
+              nextCursor: latestResponse.nextCursor,
+              prevCursor: latestResponse.prevCursor,
+              hasMore: latestResponse.hasMore,
+            }),
+          )
+
+          if (latestResponse.messages.length > 0) {
+            await messageStorage.saveGroupMessages(latestResponse.messages)
+
+            const latestMessage = latestResponse.messages[0]
+            if (latestMessage) {
+              await saveLastReadPosition(groupId, latestMessage.id)
+              conversationLastMessages.value.set(groupId, {
+                lastMessage: latestMessage.content,
+                lastMessageTime: latestMessage.createdAt,
+                lastMessageType: latestMessage.type,
+              })
+              saveConversationLastMessages()
+            }
+          }
+
+          return latestResponse
+        }
+
+        if (merged.length > 0) {
+          groupMessages.value.set(groupId, merged)
+          const existingCursor = groupCursors.value.get(groupId)
+          const { oldest, newest } = getMessageBoundaries(merged)
+          const hasLocalOlder = oldest
+            ? await hasLocalOlderGroupMessages(groupId, oldest.id)
+            : false
+
+          groupCursors.value.set(
+            groupId,
+            createHistoryCursorState(merged, {
+              nextCursor: existingCursor?.nextCursor ?? oldest?.id ?? null,
+              prevCursor: response.prevCursor ?? newest?.id ?? null,
+              hasMore: response.hasMore || hasLocalOlder,
+            }),
+          )
+        }
 
         // 如果有新消息，合并到现有消息列表
         if (response.messages.length > 0) {
-          const existing = groupMessages.value.get(groupId) || []
-          const merged = mergeMessages(existing, response.messages)
-          groupMessages.value.set(groupId, merged)
-
-          // 更新游标状态
-          groupCursors.value.set(groupId, {
-            nextCursor: response.nextCursor,
-            prevCursor: response.prevCursor,
-            hasMore: response.hasMore,
-          })
-
           // 保存到 IndexedDB
           await messageStorage.saveGroupMessages(response.messages)
 
@@ -543,18 +739,24 @@ export const useChatStore = defineStore('chat', () => {
 
       // 4. 首次加载：从 API 加载最新消息（不提供 before/after）
       const response = await groupsApi.getMessages(groupId, {
-        limit: options?.limit || 50,
+        limit,
       })
+      const normalizedMessages = sortMessagesByCreatedAt(response.messages)
+      const { oldest } = getMessageBoundaries(normalizedMessages)
+      const hasLocalOlder = oldest ? await hasLocalOlderGroupMessages(groupId, oldest.id) : false
 
       // 5. 更新消息列表（覆盖缓存）
-      groupMessages.value.set(groupId, response.messages)
+      groupMessages.value.set(groupId, normalizedMessages)
 
       // 6. 更新游标状态
-      groupCursors.value.set(groupId, {
-        nextCursor: response.nextCursor,
-        prevCursor: response.prevCursor,
-        hasMore: response.hasMore,
-      })
+      groupCursors.value.set(
+        groupId,
+        createHistoryCursorState(normalizedMessages, {
+          nextCursor: response.nextCursor,
+          prevCursor: response.prevCursor,
+          hasMore: response.hasMore || hasLocalOlder,
+        }),
+      )
 
       // 7. 保存到 IndexedDB
       if (response.messages.length > 0) {
@@ -583,33 +785,79 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   // 加载更早的群聊历史消息（向上滚动）
-  async function loadOlderGroupMessages(
-    groupId: string,
-    options?: { limit?: number }
-  ) {
+  async function loadOlderGroupMessages(groupId: string, options?: { limit?: number }) {
     try {
-      const cursor = groupCursors.value.get(groupId)
-      if (!cursor?.hasMore || !cursor.nextCursor) {
+      const limit = options?.limit || 50
+      const existing = groupMessages.value.get(groupId) || []
+      const { oldest, newest } = getMessageBoundaries(existing)
+      if (!oldest) {
         return { messages: [], hasMore: false, nextCursor: null, prevCursor: null }
+      }
+
+      const localOlderMessages = await messageStorage.getGroupMessagesBefore(
+        groupId,
+        oldest.id,
+        limit,
+      )
+
+      if (localOlderMessages.length > 0) {
+        const merged = mergeMessages(existing, localOlderMessages)
+        groupMessages.value.set(groupId, merged)
+
+        const cursor = groupCursors.value.get(groupId)
+        const localNextCursor = getMessageBoundaries(localOlderMessages).oldest?.id ?? oldest.id
+        const hasMoreLocal = await hasLocalOlderGroupMessages(groupId, localNextCursor)
+        groupCursors.value.set(
+          groupId,
+          createHistoryCursorState(merged, {
+            nextCursor: localNextCursor,
+            prevCursor: cursor?.prevCursor ?? newest?.id ?? null,
+            hasMore: hasMoreLocal || Boolean(cursor?.hasMore),
+          }),
+        )
+
+        return {
+          messages: localOlderMessages,
+          hasMore: hasMoreLocal || Boolean(cursor?.hasMore),
+          nextCursor: localNextCursor,
+          prevCursor: cursor?.prevCursor ?? newest?.id ?? null,
+        }
+      }
+
+      const cursor = groupCursors.value.get(groupId)
+      const beforeCursor = cursor?.nextCursor ?? oldest.id
+      if (!beforeCursor || (cursor && !cursor.hasMore)) {
+        return {
+          messages: [],
+          hasMore: false,
+          nextCursor: null,
+          prevCursor: cursor?.prevCursor ?? newest?.id ?? null,
+        }
       }
 
       // 使用 nextCursor 加载更早的消息
       const response = await groupsApi.getMessages(groupId, {
-        before: cursor.nextCursor,
-        limit: options?.limit || 50,
+        before: beforeCursor,
+        limit,
       })
 
       // 合并消息（去重）
-      const existing = groupMessages.value.get(groupId) || []
       const merged = mergeMessages(existing, response.messages)
       groupMessages.value.set(groupId, merged)
+      const mergedOldest = getMessageBoundaries(merged).oldest
+      const hasLocalOlder = mergedOldest
+        ? await hasLocalOlderGroupMessages(groupId, mergedOldest.id)
+        : false
 
       // 更新游标状态
-      groupCursors.value.set(groupId, {
-        nextCursor: response.nextCursor,
-        prevCursor: cursor.prevCursor, // 保持原有的 prevCursor
-        hasMore: response.hasMore,
-      })
+      groupCursors.value.set(
+        groupId,
+        createHistoryCursorState(merged, {
+          nextCursor: response.nextCursor,
+          prevCursor: cursor?.prevCursor ?? newest?.id ?? null,
+          hasMore: response.hasMore || hasLocalOlder,
+        }),
+      )
 
       // 保存到 IndexedDB
       if (response.messages.length > 0) {
@@ -624,10 +872,7 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   // 加载更新的群聊消息（向下滚动或刷新）
-  async function loadNewerGroupMessages(
-    groupId: string,
-    options?: { limit?: number }
-  ) {
+  async function loadNewerGroupMessages(groupId: string, options?: { limit?: number }) {
     try {
       const cursor = groupCursors.value.get(groupId)
       if (!cursor?.prevCursor) {
@@ -692,14 +937,14 @@ export const useChatStore = defineStore('chat', () => {
     const list = privateList || groupList
     if (list && list.length > 0) {
       const latest = list[list.length - 1]!
-      saveLastReadPosition(chatId, latest.id).catch(err => {
+      saveLastReadPosition(chatId, latest.id).catch((err) => {
         console.error('更新已读位置失败:', err)
       })
     } else {
       // 消息未加载到内存，从 IndexedDB 查最新消息
-      messageStorage.getLastMessage(chatId).then(msg => {
+      messageStorage.getLastMessage(chatId).then((msg) => {
         if (msg) {
-          saveLastReadPosition(chatId, msg.id).catch(err => {
+          saveLastReadPosition(chatId, msg.id).catch((err) => {
             console.error('更新已读位置失败:', err)
           })
         }
@@ -741,7 +986,7 @@ export const useChatStore = defineStore('chat', () => {
 
   function updatePrivateMessageStatus(
     predicate: (message: PrivateMessage) => boolean,
-    updater: (message: PrivateMessage) => void
+    updater: (message: PrivateMessage) => void,
   ) {
     for (const [, messages] of privateMessages.value) {
       for (const message of messages) {
@@ -750,7 +995,7 @@ export const useChatStore = defineStore('chat', () => {
         }
 
         updater(message)
-        messageStorage.savePrivateMessage(message).catch(err => {
+        messageStorage.savePrivateMessage(message).catch((err) => {
           console.error('更新私聊消息状态失败:', err)
         })
       }
@@ -766,15 +1011,14 @@ export const useChatStore = defineStore('chat', () => {
       (message) => {
         message.status = MessageStatus.Read
         message.readAt = readAt
-      }
+      },
     )
   }
 
   async function addPrivateMessage(message: PrivateMessage) {
     // 确定会话 ID (对方的 ID)
-    const conversationId = message.senderId === currentUserId.value
-      ? message.receiverId
-      : message.senderId
+    const conversationId =
+      message.senderId === currentUserId.value ? message.receiverId : message.senderId
 
     if (!privateMessages.value.has(conversationId)) {
       privateMessages.value.set(conversationId, [])
@@ -783,24 +1027,30 @@ export const useChatStore = defineStore('chat', () => {
     const messages = privateMessages.value.get(conversationId)
     if (messages) {
       // 按 ID 去重，避免 MessageSent 回显和 ReceiveMessage 重复
-      if (messages.some(m => m.id === message.id)) return
+      if (messages.some((m) => m.id === message.id)) return
       messages.push(message)
     }
 
     // 只有在当前查看该聊天时才更新已读位置
     if (conversationId === currentChatId.value) {
-      saveLastReadPosition(conversationId, message.id).catch(err => {
+      saveLastReadPosition(conversationId, message.id).catch((err) => {
         console.error('保存已读位置失败:', err)
       })
     }
 
     // 保存到 IndexedDB (异步,不阻塞 UI)
-    messageStorage.savePrivateMessage(message).catch(err => {
+    messageStorage.savePrivateMessage(message).catch((err) => {
       console.error('保存消息到 IndexedDB 失败:', err)
     })
 
     // 先确保会话条目存在（可能需要 await loadFriends），再递增未读数
-    await updateConversation(conversationId, 'private', message.content, message.createdAt, message.type)
+    await updateConversation(
+      conversationId,
+      'private',
+      message.content,
+      message.createdAt,
+      message.type,
+    )
 
     // 只有接收到的消息才增加未读数,且不在当前查看的聊天中
     if (message.receiverId === currentUserId.value && conversationId !== currentChatId.value) {
@@ -817,19 +1067,19 @@ export const useChatStore = defineStore('chat', () => {
 
     const messages = groupMessages.value.get(message.groupId)
     if (messages) {
-      if (messages.some(m => m.id === message.id)) return
+      if (messages.some((m) => m.id === message.id)) return
       messages.push(message)
     }
 
     // 只有在当前查看该群聊时才更新已读位置
     if (message.groupId === currentChatId.value) {
-      saveLastReadPosition(message.groupId, message.id).catch(err => {
+      saveLastReadPosition(message.groupId, message.id).catch((err) => {
         console.error('保存已读位置失败:', err)
       })
     }
 
     // 保存到 IndexedDB (异步,不阻塞 UI)
-    messageStorage.saveGroupMessage(message).catch(err => {
+    messageStorage.saveGroupMessage(message).catch((err) => {
       console.error('保存群聊消息到 IndexedDB 失败:', err)
     })
 
@@ -849,7 +1099,7 @@ export const useChatStore = defineStore('chat', () => {
     type: 'private' | 'group',
     lastMessage: string,
     lastMessageTime: string,
-    lastMessageType?: string
+    lastMessageType?: string,
   ) {
     const index = conversations.value.findIndex((c) => c.id === id)
 
@@ -946,7 +1196,7 @@ export const useChatStore = defineStore('chat', () => {
         friendId,
         currentUserId: currentUserId.value,
         currentChatId: currentChatId.value,
-        isCurrentChat: currentChatId.value === friendId
+        isCurrentChat: currentChatId.value === friendId,
       })
 
       // 1. 删除内存中的私聊消息
@@ -1032,7 +1282,7 @@ export const useChatStore = defineStore('chat', () => {
         (message) => {
           message.status = MessageStatus.Delivered
           message.deliveredAt = deliveredAt
-        }
+        },
       )
     })
 
@@ -1043,7 +1293,7 @@ export const useChatStore = defineStore('chat', () => {
         (message) => {
           message.status = MessageStatus.Read
           message.readAt = readAt
-        }
+        },
       )
     })
 
@@ -1119,7 +1369,7 @@ export const useChatStore = defineStore('chat', () => {
       privateMessages.value.clear()
       groupMessages.value.clear()
       conversations.value = []
-      Object.keys(unreadCounts).forEach(key => delete unreadCounts[key])
+      Object.keys(unreadCounts).forEach((key) => delete unreadCounts[key])
       typingUsers.value.clear()
       lastReadMessageIds.value.clear()
       conversationLastMessages.value.clear()
@@ -1157,7 +1407,7 @@ export const useChatStore = defineStore('chat', () => {
       return {
         privateMessageCount: 0,
         groupMessageCount: 0,
-        conversationCount: 0
+        conversationCount: 0,
       }
     }
   }
@@ -1177,9 +1427,11 @@ export const useChatStore = defineStore('chat', () => {
     loadPrivateMessages,
     loadOlderPrivateMessages,
     loadNewerPrivateMessages,
+    canLoadOlderPrivateMessages,
     loadGroupMessages,
     loadOlderGroupMessages,
     loadNewerGroupMessages,
+    canLoadOlderGroupMessages,
     sendPrivateMessage,
     sendGroupMessage,
     clearUnreadCount,

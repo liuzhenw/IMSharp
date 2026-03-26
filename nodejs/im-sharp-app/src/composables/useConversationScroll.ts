@@ -18,6 +18,10 @@ async function afterPaint(): Promise<void> {
 
 export function useConversationScroll(source?: MaybeRefOrGetter<unknown>) {
   const containerRef = ref<HTMLElement | null>(null)
+  const pendingPrependSnapshot = ref<{
+    scrollTop: number
+    scrollHeight: number
+  } | null>(null)
 
   function setContainer(element: HTMLElement | null) {
     containerRef.value = element
@@ -45,11 +49,52 @@ export function useConversationScroll(source?: MaybeRefOrGetter<unknown>) {
     return true
   }
 
+  async function preserveScrollPosition<T>(task: () => Promise<T>): Promise<T> {
+    if (!containerRef.value) {
+      return await task()
+    }
+
+    const snapshot = {
+      scrollTop: containerRef.value.scrollTop,
+      scrollHeight: containerRef.value.scrollHeight,
+    }
+
+    pendingPrependSnapshot.value = snapshot
+
+    try {
+      const result = await task()
+      await afterPaint()
+
+      if (containerRef.value && pendingPrependSnapshot.value === snapshot) {
+        const heightDelta = containerRef.value.scrollHeight - snapshot.scrollHeight
+        containerRef.value.scrollTop = snapshot.scrollTop + heightDelta
+        pendingPrependSnapshot.value = null
+      }
+
+      return result
+    } catch (error) {
+      if (pendingPrependSnapshot.value === snapshot) {
+        pendingPrependSnapshot.value = null
+      }
+
+      throw error
+    }
+  }
+
   if (source) {
     watch(
       [containerRef, () => toValue(source)],
       async ([container]) => {
         if (!container) {
+          return
+        }
+
+        if (pendingPrependSnapshot.value) {
+          const snapshot = pendingPrependSnapshot.value
+          await afterPaint()
+          container.scrollTop =
+            snapshot.scrollTop + (container.scrollHeight - snapshot.scrollHeight)
+          pendingPrependSnapshot.value = null
           return
         }
 
@@ -76,5 +121,6 @@ export function useConversationScroll(source?: MaybeRefOrGetter<unknown>) {
     setContainer,
     scrollToBottom,
     scrollToMessage,
+    preserveScrollPosition,
   }
 }

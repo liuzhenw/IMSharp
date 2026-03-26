@@ -17,6 +17,7 @@ export function usePrivateConversationController(options: {
 
   const isLoading = ref(true)
   const isSending = ref(false)
+  const isLoadingOlder = ref(false)
 
   const chatUser = computed(() =>
     contactsStore.friends.find((friend) => friend.id === options.chatId),
@@ -94,6 +95,27 @@ export function usePrivateConversationController(options: {
     chatStore.clearDeletedFriendNotification()
   }
 
+  const hasOlderMessages = computed(() => chatStore.canLoadOlderPrivateMessages(options.chatId))
+
+  async function loadOlderMessages() {
+    if (isLoadingOlder.value || !hasOlderMessages.value) {
+      return false
+    }
+
+    isLoadingOlder.value = true
+
+    try {
+      const response = await chatStore.loadOlderPrivateMessages(options.chatId)
+      return response.messages.length > 0
+    } catch (error) {
+      console.error('加载更早私聊消息失败:', error)
+      uiStore.showToast('加载历史消息失败', 'error')
+      return false
+    } finally {
+      isLoadingOlder.value = false
+    }
+  }
+
   onMounted(async () => {
     signalRService.on('Reconnected', handleReconnected)
 
@@ -141,11 +163,14 @@ export function usePrivateConversationController(options: {
     timelineItems,
     isLoading,
     isSending,
+    isLoadingOlder,
     isTyping,
     isFriendDeleted,
+    hasOlderMessages,
     sendText,
     sendImage,
     handleInputChange,
     clearDeletedFriendNotification,
+    loadOlderMessages,
   }
 }

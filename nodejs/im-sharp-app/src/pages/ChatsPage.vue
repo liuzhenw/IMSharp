@@ -3,6 +3,7 @@ import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useChatStore } from '@/stores'
 import { Header, SearchInput, ChatListItem, DropdownMenu, BottomNav } from '@/components'
+import { formatConversationTime } from '@/utils/time'
 
 const router = useRouter()
 const chatStore = useChatStore()
@@ -53,24 +54,6 @@ function handleChatClick(chatId: string) {
   }
 }
 
-function formatTime(time: string | null) {
-  if (!time) return ''
-  const date = new Date(time)
-  const now = new Date()
-  const diff = now.getTime() - date.getTime()
-  const days = Math.floor(diff / (1000 * 60 * 60 * 24))
-
-  if (days === 0) {
-    return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
-  } else if (days === 1) {
-    return '昨天'
-  } else if (days < 7) {
-    return `${days}天前`
-  } else {
-    return date.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' })
-  }
-}
-
 function formatLastMessage(message: string | null, messageType?: string) {
   if (!message) return ''
 
@@ -107,7 +90,7 @@ function formatLastMessage(message: string | null, messageType?: string) {
         :avatar="chat.avatar || undefined"
         :name="chat.name"
         :last-message="formatLastMessage(chat.lastMessage, chat.lastMessageType)"
-        :time="formatTime(chat.lastMessageTime)"
+        :time="formatConversationTime(chat.lastMessageTime)"
         :unread-count="chat.unreadCount"
         :online="chat.isOnline"
         :is-group="chat.type === 'group'"

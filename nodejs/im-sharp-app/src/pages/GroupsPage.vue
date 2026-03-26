@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { useGroupsStore, useChatStore, useUiStore, useAuthStore } from '@/stores'
 import { Header, SearchInput, ChatListItem, BottomNav } from '@/components'
 import type { SearchGroupResponse } from '@/types'
+import { formatConversationTime } from '@/utils/time'
 
 const router = useRouter()
 const groupsStore = useGroupsStore()
@@ -129,26 +130,6 @@ function getLastMessageTime(groupId: string) {
   )
 
   return sortedMessages[0]?.createdAt || null
-}
-
-// 格式化时间
-function formatTime(time: string | null) {
-  if (!time) return ''
-
-  const date = new Date(time)
-  const now = new Date()
-  const diff = now.getTime() - date.getTime()
-  const days = Math.floor(diff / (1000 * 60 * 60 * 24))
-
-  if (days === 0) {
-    return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
-  } else if (days === 1) {
-    return '昨天'
-  } else if (days < 7) {
-    return `${days}天前`
-  } else {
-    return date.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' })
-  }
 }
 
 // 获取未读数
@@ -281,7 +262,7 @@ function handleMyJoinRequestsClick() {
             :avatar="group.avatar || undefined"
             :name="group.name"
             :last-message="getLastMessage(group.id) || undefined"
-            :time="formatTime(getLastMessageTime(group.id))"
+            :time="formatConversationTime(getLastMessageTime(group.id))"
             :unread-count="getUnreadCount(group.id)"
             :is-group="true"
             @click="handleGroupClick(group.id)"

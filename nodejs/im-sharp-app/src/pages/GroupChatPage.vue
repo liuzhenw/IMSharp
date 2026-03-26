@@ -26,20 +26,37 @@ const chatInputBarRef = ref<InstanceType<typeof ChatInputBar> | null>(null)
 const showAnnouncement = ref(true)
 const showAnnouncementDetail = ref(false)
 
-const { group, members, timelineItems, isLoading, isSending, sendText, sendImage } =
-  useGroupConversationController({
-    groupId,
-    showReconnectToast: true,
-    enableJoinRetry: true,
-  })
+const {
+  group,
+  members,
+  timelineItems,
+  isLoading,
+  isSending,
+  isLoadingOlder,
+  hasOlderMessages,
+  sendText,
+  sendImage,
+  loadOlderMessages,
+} = useGroupConversationController({
+  groupId,
+  showReconnectToast: true,
+  enableJoinRetry: true,
+})
 
-const { setContainer, scrollToMessage } = useConversationScroll(timelineItems)
+const { setContainer, scrollToMessage, preserveScrollPosition } =
+  useConversationScroll(timelineItems)
 
 async function handleSendText(content: string) {
   const success = await sendText(content)
   if (success) {
     chatInputBarRef.value?.clearInput()
   }
+}
+
+async function handleReachTop() {
+  await preserveScrollPosition(async () => {
+    await loadOlderMessages()
+  })
 }
 
 function getSenderName(senderId: string): string {
@@ -179,6 +196,9 @@ const {
       v-if="!isSearchMode"
       :items="timelineItems"
       :loading="isLoading"
+      :can-load-more-top="hasOlderMessages"
+      :loading-more-top="isLoadingOlder"
+      :on-reach-top="handleReachTop"
       :highlighted-message-id="highlightedMessageId"
       :set-container="setContainer"
       content-class="flex-1 min-h-0 overflow-y-auto p-4 pb-32 space-y-4 bg-slate-50 dark:bg-slate-900"

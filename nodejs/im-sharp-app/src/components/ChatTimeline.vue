@@ -11,6 +11,10 @@ interface Props {
   highlightedMessageId?: string | null
   setContainer?: ((element: HTMLElement | null) => void) | null
   contentClass?: string
+  canLoadMoreTop?: boolean
+  loadingMoreTop?: boolean
+  onReachTop?: (() => void | Promise<void>) | null
+  topLoadThreshold?: number
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -19,10 +23,35 @@ const props = withDefaults(defineProps<Props>(), {
   highlightedMessageId: null,
   setContainer: null,
   contentClass: 'flex-1 overflow-y-auto p-4 pb-32 space-y-4 bg-slate-50 dark:bg-slate-900',
+  canLoadMoreTop: false,
+  loadingMoreTop: false,
+  onReachTop: null,
+  topLoadThreshold: 48,
 })
+
+let isTriggeringTopLoad = false
 
 function setContainerRef(element: Element | ComponentPublicInstance | null) {
   props.setContainer?.(element as HTMLElement | null)
+}
+
+async function handleScroll(event: Event) {
+  if (!props.canLoadMoreTop || props.loadingMoreTop || !props.onReachTop || isTriggeringTopLoad) {
+    return
+  }
+
+  const target = event.target as HTMLElement
+  if (target.scrollTop > props.topLoadThreshold) {
+    return
+  }
+
+  isTriggeringTopLoad = true
+
+  try {
+    await props.onReachTop()
+  } finally {
+    isTriggeringTopLoad = false
+  }
 }
 </script>
 
@@ -31,7 +60,13 @@ function setContainerRef(element: Element | ComponentPublicInstance | null) {
     <LoadingSpinner />
   </div>
 
-  <main v-else :ref="setContainerRef" :class="contentClass">
+  <main v-else :ref="setContainerRef" :class="contentClass" @scroll="handleScroll">
+    <div v-if="loadingMoreTop" class="flex justify-center py-2">
+      <span class="text-xs text-slate-400 bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-full">
+        加载更早消息...
+      </span>
+    </div>
+
     <template v-if="items.length > 0">
       <template v-for="item in items" :key="item.id">
         <div v-if="item.kind === 'system'" class="flex justify-center">

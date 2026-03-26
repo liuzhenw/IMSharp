@@ -17,10 +17,13 @@ const {
   timelineItems,
   isLoading,
   isSending,
+  isLoadingOlder,
   isTyping,
+  hasOlderMessages,
   sendText,
   sendImage,
   handleInputChange,
+  loadOlderMessages,
 } = usePrivateConversationController({
   chatId,
   onIncomingMessage: (message) => {
@@ -32,13 +35,19 @@ const {
   },
 })
 
-const { setContainer } = useConversationScroll(timelineItems)
+const { setContainer, preserveScrollPosition } = useConversationScroll(timelineItems)
 
 async function handleSendText(content: string) {
   const success = await sendText(content)
   if (success) {
     chatInputBarRef.value?.clearInput()
   }
+}
+
+async function handleReachTop() {
+  await preserveScrollPosition(async () => {
+    await loadOlderMessages()
+  })
 }
 </script>
 
@@ -68,6 +77,9 @@ async function handleSendText(content: string) {
     <ChatTimeline
       :items="timelineItems"
       :loading="isLoading"
+      :can-load-more-top="hasOlderMessages"
+      :loading-more-top="isLoadingOlder"
+      :on-reach-top="handleReachTop"
       :set-container="setContainer"
       content-class="flex-1 min-h-0 overflow-y-auto p-4 pb-24 space-y-4 bg-slate-50 dark:bg-slate-900"
     />

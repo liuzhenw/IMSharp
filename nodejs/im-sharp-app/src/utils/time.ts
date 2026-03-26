@@ -9,6 +9,41 @@ export function formatTime(time: string): string {
 }
 
 /**
+ * 格式化会话列表右侧时间
+ * @param time ISO 时间字符串
+ * @returns 格式化后的时间字符串（如：14:30、昨天、3天前）
+ */
+export function formatConversationTime(time: string | null): string {
+  if (!time) {
+    return ''
+  }
+
+  const date = new Date(time)
+  if (Number.isNaN(date.getTime())) {
+    return ''
+  }
+
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const messageDay = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  const dayDiff = Math.floor((today.getTime() - messageDay.getTime()) / (1000 * 60 * 60 * 24))
+
+  if (dayDiff <= 0) {
+    return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+  }
+
+  if (dayDiff === 1) {
+    return '昨天'
+  }
+
+  if (dayDiff < 7) {
+    return `${dayDiff}天前`
+  }
+
+  return date.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' })
+}
+
+/**
  * 格式化日期分隔符
  * @param time ISO 时间字符串
  * @returns 格式化后的日期字符串（如：今天、昨天、2024/01/15）

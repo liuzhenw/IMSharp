@@ -29,15 +29,19 @@ const {
   timelineItems,
   isLoading,
   isSending,
+  isLoadingOlder,
   isTyping,
   isFriendDeleted,
+  hasOlderMessages,
   sendText,
   sendImage,
   handleInputChange,
   clearDeletedFriendNotification,
+  loadOlderMessages,
 } = usePrivateConversationController({ chatId })
 
-const { setContainer, scrollToMessage } = useConversationScroll(timelineItems)
+const { setContainer, scrollToMessage, preserveScrollPosition } =
+  useConversationScroll(timelineItems)
 
 const {
   isSearchMode,
@@ -78,6 +82,12 @@ async function handleSendText(content: string) {
   if (success) {
     chatInputBarRef.value?.clearInput()
   }
+}
+
+async function handleReachTop() {
+  await preserveScrollPosition(async () => {
+    await loadOlderMessages()
+  })
 }
 
 const showFriendDeletedDialog = computed(() => isFriendDeleted.value)
@@ -154,6 +164,9 @@ const showFriendDeletedDialog = computed(() => isFriendDeleted.value)
       v-else
       :items="timelineItems"
       :loading="isLoading"
+      :can-load-more-top="hasOlderMessages"
+      :loading-more-top="isLoadingOlder"
+      :on-reach-top="handleReachTop"
       :highlighted-message-id="highlightedMessageId"
       :set-container="setContainer"
       content-class="flex-1 min-h-0 overflow-y-auto p-4 pb-32 space-y-4 bg-slate-50 dark:bg-slate-900"

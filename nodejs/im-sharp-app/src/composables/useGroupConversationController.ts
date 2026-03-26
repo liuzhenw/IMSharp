@@ -20,6 +20,7 @@ export function useGroupConversationController(options: {
 
   const isLoading = ref(true)
   const isSending = ref(false)
+  const isLoadingOlder = ref(false)
   const systemEvents = ref<ConversationSystemEvent[]>([])
   let joinRetryTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -173,6 +174,27 @@ export function useGroupConversationController(options: {
     }
   }
 
+  const hasOlderMessages = computed(() => chatStore.canLoadOlderGroupMessages(options.groupId))
+
+  async function loadOlderMessages() {
+    if (isLoadingOlder.value || !hasOlderMessages.value) {
+      return false
+    }
+
+    isLoadingOlder.value = true
+
+    try {
+      const response = await chatStore.loadOlderGroupMessages(options.groupId)
+      return response.messages.length > 0
+    } catch (error) {
+      console.error('[GroupConversation] 加载更早群聊消息失败:', error)
+      uiStore.showToast('加载历史消息失败', 'error')
+      return false
+    } finally {
+      isLoadingOlder.value = false
+    }
+  }
+
   onMounted(async () => {
     signalRService.on('Reconnected', handleReconnected)
     signalRService.on('GroupMemberJoined', handleMemberJoined)
@@ -233,8 +255,11 @@ export function useGroupConversationController(options: {
     timelineItems,
     isLoading,
     isSending,
+    isLoadingOlder,
+    hasOlderMessages,
     sendText,
     sendImage,
+    loadOlderMessages,
     resolveSenderInfo,
   }
 }
